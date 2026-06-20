@@ -1,0 +1,28 @@
+{
+  "name": "csb_bank_api_project-main",
+  "version": "1.0.0",
+  "description": "![Version](https://img.shields.io/badge/version-1.6.1-blue.svg) ![Status](https://img.shields.io/badge/status-Production_Ready-success.svg) ![Compliance](https://img.shields.io/badge/compliance-RBI_Guidelines-critical.svg) ![Latency](https://img.shields.io/badge/p95_latency-%3C250ms-brightgreen.svg)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node start.js",
+    "start:esb": "node src/esb/index.js",
+    "start:microservice": "node src/microservice/index.js",
+    "start:gateway": "node src/gateway/index.js",
+    "start:frontend": "node src/frontend/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.2.0",
+    "morgan": "^1.11.0",
+    "mysql2": "^3.22.5",
+    "redis": "^6.0.0",
+    "sqlite3": "^6.0.1",
+    "uuid": "^14.0.0"
+  }
+}

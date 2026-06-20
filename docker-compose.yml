@@ -1,0 +1,80 @@
+services:
+  nri-redis:
+    image: redis:7-alpine
+    container_name: nri-redis
+    ports:
+      - "6379:6379"
+
+  nri-mysql:
+    image: mysql:8.0
+    container_name: nri-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: nri_audit
+      MYSQL_USER: nri_user
+      MYSQL_PASSWORD: nri_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+
+  nri-esb:
+    image: node:18-alpine
+    container_name: nri-esb
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: npm run start:esb
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+
+  nri-microservice:
+    image: node:18-alpine
+    container_name: nri-microservice
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: npm run start:microservice
+    ports:
+      - "8082:8082"
+    environment:
+      - PORT=8082
+      - MYSQL_HOST=nri-mysql
+      - MYSQL_USER=nri_user
+      - MYSQL_PASSWORD=nri_password
+      - MYSQL_DATABASE=nri_audit
+    depends_on:
+      - nri-mysql
+
+  nri-gateway:
+    image: node:18-alpine
+    container_name: nri-gateway
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: npm run start:gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - ESB_URL=http://nri-esb:8081
+      - MICROSERVICE_URL=http://nri-microservice:8082
+      - REDIS_URL=redis://nri-redis:6379
+    depends_on:
+      - nri-redis
+      - nri-esb
+      - nri-microservice
+
+  nri-frontend:
+    image: node:18-alpine
+    container_name: nri-frontend
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: npm run start:frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
