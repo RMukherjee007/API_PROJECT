@@ -1,4 +1,4 @@
-NRI Yield Advisory Tool
+## NRI Yield Advisory Tool
 
 A microservice ecosystem for calculating and recommending optimal deposit products (FCNR vs. NRE) for NRI customers, based on real-time market rates and existing portfolio assets/liabilities.
 
