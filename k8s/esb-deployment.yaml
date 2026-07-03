@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: esb
+  namespace: nri-yield
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: esb }
+  template:
+    metadata:
+      labels: { app: esb }
+    spec:
+      containers:
+      - name: esb
+        image: nri-yield/esb:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8081
+        envFrom:
+        - configMapRef: { name: nri-config }
+        livenessProbe:
+          httpGet: { path: /health/live, port: 8081 }
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet: { path: /health/ready, port: 8081 }
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests: { cpu: "50m", memory: "64Mi" }
+          limits: { cpu: "200m", memory: "128Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: esb
+  namespace: nri-yield
+spec:
+  selector: { app: esb }
+  ports:
+  - port: 8081
+    targetPort: 8081
+    name: http
+  type: ClusterIP

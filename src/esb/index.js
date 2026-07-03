@@ -1,107 +1,152 @@
+/**
+ * Enterprise Service Bus (ESB) — CBS protocol translation.
+ *
+ * In production, this is the layer that translates between our advisory
+ * platform and the bank's Core Banking System (CBS). In dev mode it serves
+ * the SQLite mock. Endpoints:
+ *
+ *   GET /portfolio/:customer_id       — positions + liabilities
+ *   GET /health/{live,ready,startup}
+ *   GET /metrics
+ */
+
+process.env.SERVICE_NAME = process.env.SERVICE_NAME || 'esb';
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
+const helmet = require('helmet');
+const compression = require('compression');
 const path = require('path');
+const fs = require('fs');
+
+const config = require('../shared/config');
+const { logger, withCorrelation } = require('../shared/logger');
+const { correlationMiddleware, sendProblemJson } = require('../shared/utils/helpers');
+const { requestLogger } = require('../shared/middleware/logger');
+const { errorHandler } = require('../shared/middleware/errorHandler');
+const { rateLimiter } = require('../shared/middleware/rateLimiter');
+const { authenticateRequest } = require('../shared/middleware/auth');
+const { metricsMiddleware, metricsHandler } = require('../shared/metrics');
+
+const log = withCorrelation('-');
+log.info('esb_boot', { port: config.port.esb });
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.disable('x-powered-by');
+app.set('trust proxy', true);
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({ origin: config.security.corsOrigins }));
+app.use(compression());
+app.use(express.json({
+  limit: '1mb',
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
+app.use(correlationMiddleware);
+app.use(metricsMiddleware());
+app.use(requestLogger);
+app.use(rateLimiter);
 
-const PORT = process.env.PORT || 8081;
+const mysql = require('mysql2/promise');
 
-// Initialize SQLite CBS Database
-const dbPath = path.resolve(__dirname, 'cbs_database.sqlite');
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('[ESB] Database connection error:', err.message);
-    } else {
-        console.log('[ESB] Connected to SQLite mock CBS database.');
+const pool = mysql.createPool(config.storage.mysql);
+
+async function initDb() {
+  if (config.env === 'production') {
+    log.info('esb_demo_seed_skipped');
+    return;
+  }
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS assets (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        customer_id VARCHAR(255) NOT NULL,
+        market_value DOUBLE NOT NULL,
+        currency VARCHAR(255) NOT NULL,
+        asset_type VARCHAR(255) NOT NULL,
+        source VARCHAR(255),
+        valuation_date VARCHAR(255),
+        INDEX idx_assets_customer (customer_id)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS liabilities (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        customer_id VARCHAR(255) NOT NULL,
+        outstanding_principal DOUBLE NOT NULL,
+        currency VARCHAR(255) NOT NULL,
+        liability_type VARCHAR(255) NOT NULL,
+        source VARCHAR(255),
+        valuation_date VARCHAR(255),
+        INDEX idx_liab_customer (customer_id)
+      )
+    `);
+
+    const [[row]] = await pool.query('SELECT COUNT(*) AS c FROM assets');
+    if (row.c > 0) return;
+    const seedAssets = [
+      ['CUST123', 50000, 'USD', 'FIXED_DEPOSIT', 'CBS_CORE', '2026-06-01'],
+      ['CUST123', 10000, 'GBP', 'SAVINGS_ACCOUNT', 'CBS_CORE', '2026-06-10'],
+      ['CUST123', 5000000, 'INR', 'NRE_ACCOUNT', 'CBS_CORE', '2026-06-12'],
+      ['CUST_RICH', 100000, 'USD', 'FCNR_ACCOUNT', 'CBS_CORE', '2026-06-05'],
+      ['CUST_RICH', 5000000, 'INR', 'SAVINGS_ACCOUNT', 'CBS_CORE', '2026-06-05'],
+      ['CUST_LEVERAGED', 2000, 'USD', 'SAVINGS_ACCOUNT', 'CBS_CORE', '2026-06-05'],
+      ['CUST_DEMO', 25000, 'USD', 'FIXED_DEPOSIT', 'CBS_CORE', '2026-06-10'],
+      ['CUST_DEMO', 50000, 'EUR', 'FCNR_ACCOUNT', 'CBS_CORE', '2026-06-10'],
+    ];
+    const seedLiab = [
+      ['CUST123', 2000000, 'INR', 'HOME_LOAN', 'LOS', '2026-06-15'],
+      ['CUST_LEVERAGED', 10000000, 'INR', 'OTHER', 'LOS', '2026-06-15'],
+      ['CUST_LEVERAGED', 50000, 'USD', 'CREDIT_CARD_OUTSTANDING', 'LOS', '2026-06-15'],
+    ];
+    if (seedAssets.length > 0) {
+      await pool.query(
+        `INSERT INTO assets(customer_id, market_value, currency, asset_type, source, valuation_date) VALUES ?`, 
+        [seedAssets]
+      );
     }
-});
+    if (seedLiab.length > 0) {
+      await pool.query(
+        `INSERT INTO liabilities(customer_id, outstanding_principal, currency, liability_type, source, valuation_date) VALUES ?`, 
+        [seedLiab]
+      );
+    }
+    log.info('cbs_seeded', { assets: seedAssets.length, liabilities: seedLiab.length });
+  } catch (err) {
+    log.error('cbs_db_connection_failed', { error: err.message });
+  }
+}
 
-// Setup and Seed Database
-db.serialize(() => {
-    // Assets table
-    db.run(`CREATE TABLE IF NOT EXISTS assets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_id TEXT,
-        market_value REAL,
-        currency TEXT,
-        asset_type TEXT,
-        source TEXT,
-        valuation_date TEXT
-    )`);
+initDb();
 
-    // Liabilities table
-    db.run(`CREATE TABLE IF NOT EXISTS liabilities (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_id TEXT,
-        outstanding_principal REAL,
-        currency TEXT,
-        liability_type TEXT,
-        source TEXT,
-        valuation_date TEXT
-    )`);
+app.get('/portfolio/:customer_id', authenticateRequest, async (req, res) => {
+  const cid = req.params.customer_id;
+  if (cid === 'FAIL_CBS') return sendProblemJson(res, 503, 'CBS_UNREACHABLE', 'Legacy CBS is unreachable.', req.traceparent);
 
-    // Check if seeded
-    db.get("SELECT COUNT(*) AS count FROM assets", (err, row) => {
-        if (row && row.count === 0) {
-            console.log('[ESB] Seeding mock customers...');
-            
-            // CUST123: Moderate Leverage
-            db.run(`INSERT INTO assets (customer_id, market_value, currency, asset_type, source, valuation_date) VALUES ('CUST123', 50000.00, 'USD', 'FIXED_DEPOSIT', 'CBS_CORE', '2026-06-01')`);
-            db.run(`INSERT INTO assets (customer_id, market_value, currency, asset_type, source, valuation_date) VALUES ('CUST123', 10000.00, 'GBP', 'SAVINGS_ACCOUNT', 'CBS_CORE', '2026-06-10')`);
-            db.run(`INSERT INTO liabilities (customer_id, outstanding_principal, currency, liability_type, source, valuation_date) VALUES ('CUST123', 2000000.00, 'INR', 'HOME_LOAN', 'LOS', '2026-06-15')`);
-            
-            // CUST_RICH: No Leverage (Massive Assets)
-            db.run(`INSERT INTO assets (customer_id, market_value, currency, asset_type, source, valuation_date) VALUES ('CUST_RICH', 100000.00, 'USD', 'FCNR_ACCOUNT', 'CBS_CORE', '2026-06-05')`);
-            db.run(`INSERT INTO assets (customer_id, market_value, currency, asset_type, source, valuation_date) VALUES ('CUST_RICH', 5000000.00, 'INR', 'SAVINGS_ACCOUNT', 'CBS_CORE', '2026-06-05')`);
-
-            // CUST_LEVERAGED: Highly Leveraged (Massive Loans, few deposits)
-            db.run(`INSERT INTO assets (customer_id, market_value, currency, asset_type, source, valuation_date) VALUES ('CUST_LEVERAGED', 2000.00, 'USD', 'SAVINGS_ACCOUNT', 'CBS_CORE', '2026-06-05')`);
-            db.run(`INSERT INTO liabilities (customer_id, outstanding_principal, currency, liability_type, source, valuation_date) VALUES ('CUST_LEVERAGED', 10000000.00, 'INR', 'BUSINESS_LOAN', 'LOS', '2026-06-15')`);
-            db.run(`INSERT INTO liabilities (customer_id, outstanding_principal, currency, liability_type, source, valuation_date) VALUES ('CUST_LEVERAGED', 50000.00, 'USD', 'CREDIT_CARD', 'LOS', '2026-06-15')`);
-        }
+  try {
+    const [assets] = await pool.query(`SELECT * FROM assets WHERE customer_id = ?`, [cid]);
+    const [liabilities] = await pool.query(`SELECT * FROM liabilities WHERE customer_id = ?`, [cid]);
+    res.status(200).json({
+      source: 'ESB_FETCH',
+      positions_injected: { asset_count: (assets || []).length, liability_count: (liabilities || []).length },
+      assets: (assets || []).map((a) => ({ market_value: Number(a.market_value).toFixed(2), currency: a.currency, asset_type: a.asset_type, source: a.source, valuation_date: a.valuation_date })),
+      liabilities: (liabilities || []).map((l) => ({ outstanding_principal: Number(l.outstanding_principal).toFixed(2), currency: l.currency, liability_type: l.liability_type, source: l.source, valuation_date: l.valuation_date })),
     });
+  } catch (err) {
+    const msg = config.isProd ? 'Failed to fetch portfolio from ESB database.' : err.message;
+    return sendProblemJson(res, 500, 'INTERNAL_SERVER_ERROR', msg, req.traceparent);
+  }
 });
 
-app.get('/portfolio/:customer_id', (req, res) => {
-    const { customer_id } = req.params;
-    console.log(`[ESB] Received request to fetch portfolio for: ${customer_id}`);
+app.get('/health/live', (req, res) => res.status(200).json({ status: 'ok', service: 'esb' }));
+app.get('/health/startup', (req, res) => res.status(200).json({ status: 'started', service: 'esb' }));
+app.get('/health/ready', (req, res) => res.status(200).json({ status: 'ready', service: 'esb', uptime_seconds: process.uptime(), version: require('../../package.json').version }));
 
-    if (customer_id === "FAIL_CBS") {
-        console.error(`[ESB] Circuit Breaker OPEN for CBS. Fast-failing.`);
-        return res.status(503).json({ error: "Legacy CBS is unreachable." });
-    }
+app.get('/metrics', metricsHandler);
 
-    // Simulate latency of legacy system
-    setTimeout(() => {
-        db.all("SELECT * FROM assets WHERE customer_id = ?", [customer_id], (err, assets) => {
-            if (err) return res.status(500).json({ error: err.message });
-            
-            db.all("SELECT * FROM liabilities WHERE customer_id = ?", [customer_id], (err, liabilities) => {
-                if (err) return res.status(500).json({ error: err.message });
+app.use(errorHandler);
 
-                const portfolio = {
-                    assets: assets.map(a => ({ market_value: Number(a.market_value).toFixed(2), currency: a.currency, asset_type: a.asset_type, source: a.source, valuation_date: a.valuation_date })),
-                    liabilities: liabilities.map(l => ({ outstanding_principal: Number(l.outstanding_principal).toFixed(2), currency: l.currency, liability_type: l.liability_type, source: l.source, valuation_date: l.valuation_date }))
-                };
+const PORT = config.port.esb;
+app.listen(PORT, () => log.info('esb_listening', { port: PORT }));
 
-                console.log(`[ESB] Successfully translated data for ${customer_id}`);
-                res.json({
-                    source: "ESB_FETCH",
-                    positions_injected: {
-                        asset_count: portfolio.assets.length,
-                        liability_count: portfolio.liabilities.length
-                    },
-                    assets: portfolio.assets,
-                    liabilities: portfolio.liabilities
-                });
-            });
-        });
-    }, 300); // 300ms mock delay
-});
-
-app.listen(PORT, () => {
-    console.log(`[ESB] Lightweight ESB Layer listening on port ${PORT}`);
-});
+process.on('SIGTERM', async () => { await pool.end(); process.exit(0); });
+process.on('SIGINT', async () => { await pool.end(); process.exit(0); });

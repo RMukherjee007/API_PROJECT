@@ -1,853 +1,176 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NRI Yield Advisory Portal</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-        <style>
-        :root {
-            --bg-body: #f4f7f6;
-            --bg-card: #ffffff;
-            --text-main: #1a1a1a;
-            --text-muted: #757575;
-            --primary: #388e3c;
-            --primary-hover: #2e7d32;
-            --accent: #e8f5e9;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --border: #e0e0e0;
-        }
-
-        body {
-            margin: 0;
-            font-family: 'Outfit', sans-serif;
-            background: var(--bg-body);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            overflow-x: hidden;
-        }
-
-        /* Sidebar */
-        .sidebar {
-            width: 80px;
-            background: var(--bg-card);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 2rem 0;
-            position: fixed;
-            height: 100vh;
-            box-sizing: border-box;
-            z-index: 10;
-        }
-        .sidebar .logo {
-            font-weight: 800;
-            font-size: 1.5rem;
-            color: var(--primary);
-            margin-bottom: 3rem;
-            background: var(--accent);
-            width: 50px;
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-        }
-        .nav-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 1rem;
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .nav-icon.active {
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 4px 10px rgba(56, 142, 60, 0.3);
-        }
-        .nav-icon:hover:not(.active) {
-            background: var(--accent);
-            color: var(--primary);
-        }
-
-        /* Main Content */
-        .main-content {
-            margin-left: 80px;
-            flex: 1;
-            padding: 2rem 3rem;
-            box-sizing: border-box;
-            max-width: 1400px;
-        }
-
-        /* Topbar */
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-            background: var(--bg-card);
-            padding: 1rem 2rem;
-            border-radius: 40px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
-        }
-        .nav-links {
-            display: flex;
-            gap: 2rem;
-            font-weight: 600;
-            color: var(--text-muted);
-        }
-        .nav-links span.active {
-            color: var(--text-main);
-        }
-        .profile-section {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        .profile-circle {
-            width: 40px;
-            height: 40px;
-            background: #e0e0e0;
-            border-radius: 50%;
-        }
-
-        .welcome-section {
-            margin-bottom: 2rem;
-        }
-        .welcome-section h1 {
-            font-size: 2.5rem;
-            font-weight: 400;
-            margin: 0;
-        }
-        .welcome-section h1 span {
-            font-weight: 800;
-        }
-
-        /* Dashboard Grid */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 2rem;
-        }
-
-        .card {
-            background: var(--bg-card);
-            border-radius: 20px;
-            padding: 1.5rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
-            display: flex;
-            flex-direction: column;
-        }
-        .col-span-2 { grid-column: span 2; }
-        .col-span-3 { grid-column: span 3; }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-        }
-        .card-title {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--text-main);
-            margin: 0;
-        }
-        
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-        .form-group {
-            margin-bottom: 1rem;
-        }
-        label {
-            display: block;
-            margin-bottom: 0.4rem;
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
-        input, select, textarea {
-            width: 100%;
-            background: #f9f9f9;
-            border: 1px solid var(--border);
-            color: var(--text-main);
-            padding: 0.75rem 1rem;
-            border-radius: 12px;
-            font-family: inherit;
-            font-size: 0.95rem;
-            box-sizing: border-box;
-            transition: all 0.2s ease;
-        }
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: var(--primary);
-            background: #fff;
-            box-shadow: 0 0 0 3px var(--accent);
-        }
-
-        /* Buttons */
-        .btn-add {
-            background: var(--accent);
-            color: var(--primary);
-            border: none;
-            padding: 0.6rem 1rem;
-            font-size: 0.85rem;
-            border-radius: 20px;
-            cursor: pointer;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            transition: all 0.2s;
-            margin-bottom: 1rem;
-        }
-        .btn-add:hover {
-            background: #dcedc8;
-        }
-        .builder-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr auto;
-            gap: 0.5rem;
-            margin-bottom: 0.5rem;
-        }
-        .btn-remove {
-            background: #fee2e2;
-            border: none;
-            color: #ef4444;
-            width: 38px;
-            height: 38px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 1.2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .btn-remove:hover {
-            background: #fecaca;
-        }
-
-        .submit-btn {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 1rem;
-            border-radius: 12px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            width: 100%;
-            box-shadow: 0 10px 20px rgba(56, 142, 60, 0.2);
-            transition: all 0.2s;
-            margin-top: auto;
-        }
-        .submit-btn:hover {
-            background: var(--primary-hover);
-            transform: translateY(-2px);
-        }
-
-        /* Results Display */
-        #results {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            min-height: 200px;
-        }
-        .result-box {
-            display: none;
-            animation: fadeIn 0.4s ease forwards;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        #emptyState {
-            text-align: center;
-            color: var(--text-muted);
-            margin: auto;
-        }
-
-        .primary-card {
-            background: var(--primary);
-            color: white;
-            border-radius: 20px;
-            padding: 1.5rem;
-            box-shadow: 0 15px 30px rgba(56, 142, 60, 0.3);
-            margin-bottom: 1.5rem;
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            min-height: 150px;
-        }
-        .primary-card::after {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -20%;
-            width: 200px;
-            height: 200px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 50%;
-        }
-        .rec-badge {
-            font-size: 3rem;
-            font-weight: 800;
-            margin-bottom: 0.5rem;
-        }
-        
-        .stat-grid-res {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-bottom: 1rem;
-            height: 100%;
-        }
-        .stat-item {
-            background: #f9f9f9;
-            padding: 1rem;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-        }
-        .stat-item span {
-            display: block;
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-bottom: 0.3rem;
-            text-transform: uppercase;
-        }
-        .stat-item strong {
-            font-size: 1.25rem;
-            color: var(--text-main);
-        }
-        .warning-box {
-            background: #fffbeb;
-            border: 1px solid #fcd34d;
-            color: #b45309;
-            padding: 1rem;
-            border-radius: 12px;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-        }
-        .loader {
-            display: none;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-top: 3px solid white;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NRI Yield Advisory</title>
+<style>
+:root{--bg:#f6f8fb;--panel:#fff;--ink:#172033;--muted:#667085;--line:#d9e0ea;--brand:#17694f;--brand2:#0f4f78;--warn:#9a5b00;--warnbg:#fff7df;--bad:#b42318}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,Arial,sans-serif}
+button,input,select,textarea{font:inherit}
+.shell{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
+.side{background:#102236;color:#fff;padding:24px;display:flex;flex-direction:column;gap:20px}
+.brand{font-weight:800;font-size:20px;line-height:1.2}
+.nav{display:grid;gap:8px;margin-top:12px}
+.nav button{height:42px;border:1px solid rgba(255,255,255,.16);background:transparent;color:#cfe1ef;border-radius:8px;text-align:left;padding:0 12px;cursor:pointer}
+.nav button.active{background:#fff;color:#102236}
+.side small{color:#9fb3c5;line-height:1.5;margin-top:auto}
+.main{padding:28px;display:grid;gap:20px;align-content:start}
+.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+h1{font-size:28px;margin:0 0 6px}
+p{margin:0;color:var(--muted);line-height:1.5}
+.pill{display:inline-flex;align-items:center;min-height:32px;border:1px solid var(--line);border-radius:999px;padding:0 12px;background:#fff;color:var(--muted);font-size:13px}
+.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px}
+.panel h2{font-size:16px;margin:0 0 14px}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.field{display:grid;gap:6px}
+label{font-size:12px;text-transform:uppercase;color:var(--muted);font-weight:700}
+input,select,textarea{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);padding:10px 11px;min-height:42px}
+textarea{min-height:78px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid rgba(23,105,79,.18);border-color:var(--brand)}
+.full{grid-column:1/-1}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+.primary,.secondary{border-radius:8px;min-height:42px;padding:0 14px;font-weight:700;cursor:pointer}
+.primary{background:var(--brand);color:#fff;border:0}
+.secondary{background:#edf3f8;color:#102236;border:1px solid var(--line)}
+.positions{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.row{display:grid;grid-template-columns:1fr 1fr 1fr 38px;gap:8px;margin-bottom:8px}
+.row button{border:1px solid #ffd2cc;background:#fff0ee;color:var(--bad);border-radius:8px;cursor:pointer}
+.result{display:grid;gap:12px}
+.hero-result{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;border-radius:8px;padding:18px}
+.hero-result span{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.08em;opacity:.78}
+.hero-result strong{display:block;font-size:42px;margin-top:6px}
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.metric{border:1px solid var(--line);border-radius:8px;padding:12px;background:#fbfcfe}
+.metric span{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:700}
+.metric strong{display:block;font-size:20px;margin-top:5px}
+.projection{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.projection .metric strong{font-size:24px}
+.warn{border:1px solid #ffd88a;background:var(--warnbg);color:var(--warn);border-radius:8px;padding:10px 12px;margin-top:8px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:8px}
+table{width:100%;border-collapse:collapse;background:#fff;font-size:14px}
+th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{background:#eef4f8;color:#344054;font-size:12px;text-transform:uppercase}
+tr:last-child td{border-bottom:0}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}
+.error{color:var(--bad)}
+@media(max-width:980px){.shell{grid-template-columns:1fr}.grid,.positions,.projection{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.metrics{grid-template-columns:1fr}.top{display:grid}}
+</style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="logo">CSB</div>
-        <div class="nav-icon active">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-        </div>
-        <div class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-        </div>
-        <div class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-        </div>
-        <div class="nav-icon" style="margin-top: auto; margin-bottom: 2rem;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-        </div>
+<div class="shell">
+  <aside class="side hidden" id="sidebar">
+    <div class="brand">NRI Yield Advisory</div>
+    <div class="nav">
+      <button class="active" data-view="advice">Advice</button>
+      <button data-view="history">Suggestion History</button>
+      <button data-view="rates">Market Rates</button>
+      <button id="logoutBtn" style="margin-top: 20px; color: #f87171;">Logout</button>
     </div>
+    <small>Server-signed BFF. No client-side secrets. Overrides are restricted to Senior RM and Treasury.</small>
+  </aside>
 
-    <div class="main-content">
-        <header>
-            <div class="nav-links">
-                <span class="active">Dashboard</span>
-                <span>Reports</span>
-                <span>Documents</span>
-                <span>History</span>
-            </div>
-            <div class="profile-section">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted); margin-right:10px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <div class="profile-circle"></div>
-            </div>
-        </header>
-
-        <div class="welcome-section">
-            <h1>Welcome Back, <span>RM</span></h1>
-            <p style="color: var(--text-muted); margin-top: 5px;">Yield Advisory Dashboard</p>
-        </div>
-
-        <form id="optimizeForm">
-            <div class="dashboard-grid">
-                
-                <!-- Deposit Details -->
-                <div class="card col-span-2">
-                    <div class="card-header">
-                        <h2 class="card-title">Deposit Details</h2>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Customer CIF ID</label>
-                            <input type="text" id="customer_id" value="CUST123" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Principal Amount</label>
-                            <input type="number" id="principal_amount" value="50000.00" step="0.01" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Base Currency</label>
-                            <select id="base_currency">
-                                <option value="USD">USD</option>
-                                <option value="GBP">GBP</option>
-                                <option value="EUR">EUR</option>
-                                <option value="AED">AED</option>
-                                <option value="INR">INR</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Tenure (Months)</label>
-                            <select id="tenure_months">
-                                <option value="12">12</option>
-                                <option value="24">24</option>
-                                <option value="36" selected>36</option>
-                                <option value="60">60</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Risk Profile</label>
-                            <select id="risk_profile">
-                                <option value="CONSERVATIVE">Conservative</option>
-                                <option value="MODERATE" selected>Moderate</option>
-                                <option value="AGGRESSIVE">Aggressive</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>User Role</label>
-                            <select id="user_role">
-                                <option value="RM" selected>RM (No overrides)</option>
-                                <option value="SENIOR_RM">Senior RM (Overrides allowed)</option>
-                                <option value="TREASURY">Treasury (Overrides allowed)</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Inflation & Submit -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2 class="card-title">Inflation Config</h2>
-                    </div>
-                    <div class="form-group">
-                        <label>India Inflation %</label>
-                        <input type="number" id="india_inflation_rate" step="0.01" placeholder="e.g. 4.50">
-                    </div>
-                    <div class="form-group">
-                        <label>Foreign Inflation %</label>
-                        <input type="number" id="foreign_inflation_rate" step="0.01" placeholder="e.g. 2.00">
-                    </div>
-                    <div style="flex-grow: 1;"></div>
-                    <button type="submit" id="submitBtn" class="submit-btn">
-                        <span id="btnText">Calculate Optimal Route</span>
-                        <div class="loader" id="btnLoader"></div>
-                    </button>
-                </div>
-
-                <!-- Rate Overrides -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2 class="card-title">Rate Overrides</h2>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Spot Override</label>
-                            <input type="number" id="spot_override" step="0.000001" placeholder="84.5000">
-                        </div>
-                        <div class="form-group">
-                            <label>Forward Override</label>
-                            <input type="number" id="forward_override" step="0.000001" placeholder="86.2000">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>FCNR Rate %</label>
-                            <input type="number" id="fcnr_override" step="0.01" placeholder="5.50">
-                        </div>
-                        <div class="form-group">
-                            <label>NRE Rate %</label>
-                            <input type="number" id="nre_override" step="0.01" placeholder="7.50">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Override Reason</label>
-                        <textarea id="override_reason" rows="2" placeholder="Mandatory justification..."></textarea>
-                    </div>
-                </div>
-
-                <!-- Assets and Liabilities -->
-                <div class="card col-span-2">
-                    <div class="card-header">
-                        <h2 class="card-title">Client Portfolio (ALM Net Position Check)</h2>
-                    </div>
-                    <div class="form-row">
-                        <div>
-                            <label>Assets</label>
-                            <div id="assetsList"></div>
-                            <button type="button" class="btn-add" id="addAssetBtn">+ Add Asset</button>
-                        </div>
-                        <div>
-                            <label>Liabilities</label>
-                            <div id="liabilitiesList"></div>
-                            <button type="button" class="btn-add" id="addLiabilityBtn">+ Add Liability</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+  <main class="main">
+    <section id="view-login" class="view">
+      <div class="panel" style="max-width: 400px; margin: 40px auto;">
+        <h2>Login</h2>
+        <form id="loginForm" class="form-grid" style="grid-template-columns: 1fr;">
+          <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" placeholder="user@csb.co.in" required></div>
+          <div class="field"><label for="loginPassword">Password</label><input id="loginPassword" type="password" required></div>
+          <div class="actions" style="margin-top: 16px;">
+            <button class="primary" type="submit" style="width: 100%;">Log In</button>
+            <span class="status" id="loginStatus"></span>
+          </div>
         </form>
+      </div>
+    </section>
 
-        <div class="dashboard-grid" style="margin-top: 2rem;">
-            <!-- Results Display -->
-            <div class="card col-span-3" id="results">
-                <div id="emptyState">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity: 0.3; margin-bottom: 1rem;">
-                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-                    </svg>
-                    <p>Submit portfolio details to view routing recommendation.</p>
-                </div>
+    <div class="top hidden" id="topNav">
+      <div>
+        <h1>Money Placement Advice</h1>
+        <p>Compare FCNR vs NRE using current market rates, forward premiums, and the client's assets and liabilities.</p>
+      </div>
+      <span class="pill" id="feedStatus">Rates: checking</span>
+    </div>
 
-                <div class="result-box" id="resultContent">
-                    <div class="dashboard-grid">
-                        <div class="primary-card">
-                            <div style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem; position: relative; z-index: 1;">Recommended Route</div>
-                            <div class="rec-badge" id="recProduct" style="position: relative; z-index: 1;">FCNR</div>
-                            <div style="font-size: 0.9rem; opacity: 0.9; position: relative; z-index: 1;">Optimal yield based on provided data</div>
-                        </div>
-                        
-                        <div class="col-span-2">
-                            <div class="stat-grid-res">
-                                <div class="stat-item">
-                                    <span>FCNR Effective Yield</span>
-                                    <strong id="fcnrYield">--%</strong>
-                                </div>
-                                <div class="stat-item">
-                                    <span>NRE Effective Yield</span>
-                                    <strong id="nreYield">--%</strong>
-                                </div>
-                                <div class="stat-item">
-                                    <span>ALM Penalty Applied</span>
-                                    <strong id="almPenalty">-- %</strong>
-                                    <div id="almReason" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; line-height: 1.2;"></div>
-                                </div>
-                                <div class="stat-item">
-                                    <span>Data Source</span>
-                                    <strong id="dataSource">--</strong>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+    <section id="view-advice" class="view hidden">
+      <form id="adviceForm" class="grid">
+        <div class="panel">
+          <h2>Client And Money</h2>
+          <div class="form-grid">
+            <div class="field"><label for="customer_id">Customer ID</label><input id="customer_id" value="CUST123" autocomplete="off"></div>
+            <div class="field"><label for="principal_amount">Amount</label><input id="principal_amount" type="number" step="0.01" value="50000.00"></div>
+            <div class="field"><label for="base_currency">Currency</label><select id="base_currency"></select></div>
+            <div class="field"><label for="tenure_months">After X Months</label><select id="tenure_months"><option>12</option><option>24</option><option selected>36</option><option>48</option><option>60</option></select></div>
+            <div class="field"><label for="risk_profile">Risk Profile</label><select id="risk_profile"><option>CONSERVATIVE</option><option selected>MODERATE</option><option>AGGRESSIVE</option></select></div>
+            <div class="field"><label for="india_inflation_rate">India Inflation %</label><input id="india_inflation_rate" type="number" step="0.01" placeholder="Optional"></div>
+            <div class="field"><label for="foreign_inflation_rate">Foreign Inflation %</label><input id="foreign_inflation_rate" type="number" step="0.01" placeholder="Optional"></div>
+          </div>
 
-                    <div id="warningsContainer"></div>
-
-                    <div class="stat-item" style="margin-top: 1rem;">
-                        <span>Compliance Rules (Sec 10(4))</span>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0; line-height: 1.5;" id="complianceText"></p>
-                    </div>
-                </div>
-            </div>
+          <div class="positions" style="margin-top:16px">
+            <div><h2>Assets</h2><div id="assetsList"></div><button type="button" class="secondary" id="addAssetBtn">Add Asset</button></div>
+            <div><h2>Liabilities</h2><div id="liabilitiesList"></div><button type="button" class="secondary" id="addLiabilityBtn">Add Liability</button></div>
+          </div>
         </div>
 
-    </div>
-<script>
-        // Web Crypto API helpers for HMAC-SHA256 and SHA-256 hex digests
-        async function sha256Hex(message) {
-            const msgBuffer = new TextEncoder().encode(message);
-            const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        }
+        <div class="panel">
+          <h2>Senior RM / Treasury Override</h2>
+          <div class="form-grid">
+            <div class="field"><label for="spot_override">Spot Rate</label><input id="spot_override" type="number" step="0.000001" placeholder="Optional"></div>
+            <div class="field"><label for="forward_override">Forward Rate</label><input id="forward_override" type="number" step="0.000001" placeholder="Optional"></div>
+            <div class="field"><label for="fcnr_override">FCNR Rate %</label><input id="fcnr_override" type="number" step="0.01" placeholder="Optional"></div>
+            <div class="field"><label for="nre_override">NRE Rate %</label><input id="nre_override" type="number" step="0.01" placeholder="Optional"></div>
+            <div class="field full"><label for="override_reason">Override Reason</label><textarea id="override_reason" placeholder="Required when an override is used"></textarea></div>
+          </div>
+          <div class="actions">
+            <button class="primary" type="submit" id="submitBtn">Calculate Advice</button>
+            <span class="status" id="formStatus"></span>
+          </div>
+        </div>
+      </form>
 
-        async function computeHMAC(secret, message) {
-            const encoder = new TextEncoder();
-            const keyData = encoder.encode(secret);
-            const messageData = encoder.encode(message);
+      <div class="panel result hidden" id="resultPanel" style="margin-top:18px">
+        <div class="hero-result"><span>Recommended route</span><strong id="recProduct">-</strong></div>
+        <div class="projection">
+          <div class="metric"><span>Followed Advice</span><strong id="followedAmount">-</strong><p id="followedText"></p></div>
+          <div class="metric"><span>Did Not Follow</span><strong id="notFollowedAmount">-</strong><p id="notFollowedText"></p></div>
+        </div>
+        <div class="metrics">
+          <div class="metric"><span>Advantage</span><strong id="advantageAmount">-</strong></div>
+          <div class="metric"><span>FCNR Yield</span><strong id="fcnrYield">-</strong></div>
+          <div class="metric"><span>NRE Yield</span><strong id="nreYield">-</strong></div>
+          <div class="metric"><span>Forward Used</span><strong id="forwardUsed">-</strong></div>
+          <div class="metric"><span>ALM Penalty</span><strong id="almPenalty">-</strong></div>
+          <div class="metric"><span>Portfolio Source</span><strong id="portfolioSource">-</strong></div>
+        </div>
+        <div id="warnings"></div>
+        <div class="actions">
+          <button class="secondary" id="downloadReportBtn" type="button">Download Report</button>
+          <button class="secondary" id="refreshHistoryBtn" type="button">Refresh History</button>
+        </div>
+      </div>
+    </section>
 
-            const cryptoKey = await window.crypto.subtle.importKey(
-                "raw",
-                keyData,
-                { name: "HMAC", hash: { name: "SHA-256" } },
-                false,
-                ["sign"]
-            );
+    <section id="view-history" class="view hidden">
+      <div class="panel">
+        <div class="top"><div><h2>Suggestion History</h2><p>Recent advice events and persisted audit records.</p></div><div><button class="secondary" id="downloadBulkPdfBtn" style="margin-right: 10px;">Download PDF</button><button class="secondary" id="loadHistoryBtn">Refresh</button></div></div>
+        <div class="table-wrap" style="margin-top:14px">
+          <table><thead><tr><th>Time</th><th>Customer</th><th>Recommended</th><th>FCNR Yield</th><th>NRE Yield</th><th>Report</th></tr></thead><tbody id="historyRows"><tr><td colspan="6">No history loaded.</td></tr></tbody></table>
+        </div>
+      </div>
+    </section>
 
-            const signature = await window.crypto.subtle.sign(
-                "HMAC",
-                cryptoKey,
-                messageData
-            );
-
-            const hashArray = Array.from(new Uint8Array(signature));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        }
-
-        const assetCurrencies = ["INR", "USD", "GBP", "EUR", "CAD", "AUD", "SGD", "JPY", "CHF", "HKD", "AED", "SAR", "QAR", "OMR", "BHD", "KWD"];
-        const assetTypes = ["FIXED_DEPOSIT", "NRE_ACCOUNT", "FCNR_ACCOUNT", "SAVINGS_ACCOUNT", "MUTUAL_FUND", "EQUITY", "OTHER"];
-        const liabilityTypes = ["HOME_LOAN", "LOAN_AGAINST_PROPERTY", "CAR_LOAN", "PERSONAL_LOAN", "CREDIT_CARD_OUTSTANDING", "OTHER"];
-
-        function createAssetRow() {
-            const container = document.getElementById('assetsList');
-            const row = document.createElement('div');
-            row.className = 'builder-row';
-            
-            let ccyOptions = assetCurrencies.map(c => `<option value="${c}">${c}</option>`).join('');
-            let typeOptions = assetTypes.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('');
-            
-            row.innerHTML = `
-                <select class="asset-currency">${ccyOptions}</select>
-                <select class="asset-type">${typeOptions}</select>
-                <input type="number" class="asset-value" placeholder="Value" step="0.01" required>
-                <button type="button" class="btn-remove">&times;</button>
-            `;
-            
-            row.querySelector('.btn-remove').addEventListener('click', () => row.remove());
-            container.appendChild(row);
-        }
-
-        function createLiabilityRow() {
-            const container = document.getElementById('liabilitiesList');
-            const row = document.createElement('div');
-            row.className = 'builder-row';
-            
-            let ccyOptions = assetCurrencies.map(c => `<option value="${c}">${c}</option>`).join('');
-            let typeOptions = liabilityTypes.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('');
-            
-            row.innerHTML = `
-                <select class="liability-currency">${ccyOptions}</select>
-                <select class="liability-type">${typeOptions}</select>
-                <input type="number" class="liability-value" placeholder="Principal" step="0.01" required>
-                <button type="button" class="btn-remove">&times;</button>
-            `;
-            
-            row.querySelector('.btn-remove').addEventListener('click', () => row.remove());
-            container.appendChild(row);
-        }
-
-        document.getElementById('addAssetBtn').addEventListener('click', createAssetRow);
-        document.getElementById('addLiabilityBtn').addEventListener('click', createLiabilityRow);
-
-        const overrideReason = document.getElementById('override_reason');
-
-        document.getElementById('optimizeForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const btnText = document.getElementById('btnText');
-            const btnLoader = document.getElementById('btnLoader');
-            const submitBtn = document.getElementById('submitBtn');
-            const emptyState = document.getElementById('emptyState');
-            const resultContent = document.getElementById('resultContent');
-            const warningsContainer = document.getElementById('warningsContainer');
-
-            // UI Loading state
-            btnText.style.display = 'none';
-            btnLoader.style.display = 'block';
-            submitBtn.disabled = true;
-            emptyState.style.display = 'none';
-            resultContent.style.display = 'none';
-            warningsContainer.innerHTML = '';
-            
-            const indiaInflation = document.getElementById('india_inflation_rate').value;
-            const foreignInflation = document.getElementById('foreign_inflation_rate').value;
-            const userRole = document.getElementById('user_role').value;
-            
-            // Build assets array
-            const assets = [];
-            document.querySelectorAll('#assetsList .builder-row').forEach(row => {
-                const currency = row.querySelector('.asset-currency').value;
-                const asset_type = row.querySelector('.asset-type').value;
-                const market_value = parseFloat(row.querySelector('.asset-value').value).toFixed(2);
-                assets.push({
-                    market_value,
-                    currency,
-                    asset_type,
-                    source: "MANUAL",
-                    valuation_date: new Date().toISOString().split('T')[0]
-                });
-            });
-
-            // Build liabilities array
-            const liabilities = [];
-            document.querySelectorAll('#liabilitiesList .builder-row').forEach(row => {
-                const currency = row.querySelector('.liability-currency').value;
-                const liability_type = row.querySelector('.liability-type').value;
-                const outstanding_principal = parseFloat(row.querySelector('.liability-value').value).toFixed(2);
-                liabilities.push({
-                    outstanding_principal,
-                    currency,
-                    liability_type,
-                    source: "MANUAL",
-                    valuation_date: new Date().toISOString().split('T')[0]
-                });
-            });
-
-            const payload = {
-                customer_id: document.getElementById('customer_id').value,
-                risk_profile: document.getElementById('risk_profile').value,
-                principal_amount: parseFloat(document.getElementById('principal_amount').value).toFixed(2),
-                base_currency: document.getElementById('base_currency').value,
-                value_date: new Date().toISOString().split('T')[0],
-                tenure_months: parseInt(document.getElementById('tenure_months').value, 10),
-                channel: "BRANCH",
-                branch_code: "GIFT-001", // Default to GIFT to support GCC out of the box
-                assets,
-                liabilities
-            };
-
-            if (indiaInflation) {
-                payload.india_inflation_rate = parseFloat(indiaInflation).toFixed(2);
-            }
-            if (foreignInflation) {
-                payload.foreign_inflation_rate = parseFloat(foreignInflation).toFixed(2);
-            }
-
-            // Rate Overrides
-            const spotOverride = document.getElementById('spot_override').value;
-            const forwardOverride = document.getElementById('forward_override').value;
-            const fcnrOverride = document.getElementById('fcnr_override').value;
-            const nreOverride = document.getElementById('nre_override').value;
-            const reason = overrideReason.value;
-
-            const fx_rate_overrides = {};
-            if (spotOverride) {
-                fx_rate_overrides.product_spot_rate = parseFloat(spotOverride).toFixed(4);
-            }
-            if (forwardOverride) {
-                const tenure = document.getElementById('tenure_months').value;
-                fx_rate_overrides.forward_rates = {
-                    [tenure]: parseFloat(forwardOverride).toFixed(4)
-                };
-            }
-            if (Object.keys(fx_rate_overrides).length > 0) {
-                payload.fx_rate_overrides = fx_rate_overrides;
-            }
-
-            const market_rates_override = {};
-            if (fcnrOverride) {
-                market_rates_override.fcnr_rate_pct = parseFloat(fcnrOverride).toFixed(2);
-            }
-            if (nreOverride) {
-                market_rates_override.nre_rate_pct = parseFloat(nreOverride).toFixed(2);
-            }
-            if (Object.keys(market_rates_override).length > 0) {
-                market_rates_override.override_reason = reason;
-                payload.market_rates_override = market_rates_override;
-            }
-
-            try {
-                const idempKey = 'idemp-' + Math.random().toString(36).substr(2, 9);
-                const timestamp = Date.now().toString();
-                
-                const bodyString = JSON.stringify(payload);
-                const bodyHash = await sha256Hex(bodyString);
-                
-                const secret = 'local-test-secret-change-me'; // shared local secret
-                const signingString = `${timestamp}|POST|/optimize|${bodyHash}`;
-                const signature = await computeHMAC(secret, signingString);
-
-                const response = await fetch('http://localhost:8080/optimize', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Idempotency-Key': idempKey,
-                        'X-Gateway-Timestamp': timestamp,
-                        'X-Internal-Signature': signature,
-                        'X-User-Role': userRole,
-                        'X-Employee-ID': 'EMP-FRONTEND'
-                    },
-                    body: bodyString
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    // Populate UI
-                    const badge = document.getElementById('recProduct');
-                    badge.innerText = data.advisory.recommended_product;
-                    
-                    if (data.advisory.recommended_product === 'FCNR') {
-                        badge.style.color = '#10b981';
-                        badge.style.background = 'rgba(16, 185, 129, 0.2)';
-                        badge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-                    } else if (data.advisory.recommended_product === 'NRE') {
-                        badge.style.color = '#3b82f6';
-                        badge.style.background = 'rgba(59, 130, 246, 0.2)';
-                        badge.style.borderColor = 'rgba(59, 130, 246, 0.3)';
-                    } else {
-                        badge.style.color = '#8b5cf6';
-                        badge.style.background = 'rgba(139, 92, 246, 0.2)';
-                        badge.style.borderColor = 'rgba(139, 92, 246, 0.3)';
-                    }
-
-                    if (data.advisory.fx_risk_flag) {
-                        warningsContainer.innerHTML += `<div class="warning-box"><strong>FX Risk Flag:</strong> Discuss currency risk with this conservative client.</div>`;
-                    }
-
-                    data.advisory.compliance_warnings.forEach(w => {
-                        warningsContainer.innerHTML += `<div class="warning-box">${w}</div>`;
-                    });
-
-                    // Server yields are formatted strings
-                    const isReal = data.decision_trace.calculation_method === 'REAL_PPP_ADJUSTED';
-                    const fcnrYieldVal = isReal ? data.decision_trace.fcnr_real_yield_pct : data.decision_trace.fcnr_effective_yield_pct;
-                    const nreYieldVal = isReal ? data.decision_trace.nre_real_yield_pct : data.decision_trace.nre_effective_yield_pct;
-
-                    document.getElementById('fcnrYield').innerText = (fcnrYieldVal || '0.00') + '%';
-                    document.getElementById('nreYield').innerText = (nreYieldVal || '0.00') + '%';
-                    document.getElementById('almPenalty').innerText = data.decision_trace.alm_penalty_pct + '%';
-                    
-                    const reasonElem = document.getElementById('almReason');
-                    if (data.decision_trace.alm_penalty_applied) {
-                        reasonElem.innerText = "Reduced yield due to excess client deposits vs loans.";
-                        reasonElem.style.color = "#ef4444"; // red-ish for penalty
-                    } else {
-                        reasonElem.innerText = "No penalty (balanced portfolio)";
-                        reasonElem.style.color = "var(--text-muted)";
-                    }
-                    document.getElementById('dataSource').innerText = data.metadata.portfolio_enrichment.source;
-                    document.getElementById('complianceText').innerText = data.compliance.tax_treatment;
-
-                    resultContent.style.display = 'block';
-                } else {
-                    alert("API Error: " + (data.detail || data.error || data.message || "Failed to fetch recommendation"));
-                    emptyState.style.display = 'block';
-                }
-
-            } catch (err) {
-                console.error(err);
-                alert("Network Error: Make sure Gateway is running on port 8080.");
-                emptyState.style.display = 'block';
-            } finally {
-                btnText.style.display = 'block';
-                btnLoader.style.display = 'none';
-                submitBtn.disabled = false;
-            }
-        });
-    </script>
+    <section id="view-rates" class="view hidden">
+      <div class="panel">
+        <div class="top"><div><h2>Market Rates</h2><p>Current spot, forward, and deposit policy rates from the configured feed.</p></div><button class="secondary" id="loadRatesBtn">Refresh</button></div>
+        <pre id="ratesJson" style="white-space:pre-wrap;margin-top:14px;background:#0f172a;color:#e5e7eb;padding:14px;border-radius:8px;overflow:auto;max-height:560px"></pre>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="/app.js"></script>
 </body>
 </html>

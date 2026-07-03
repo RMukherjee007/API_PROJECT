@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yield-engine
+  namespace: nri-yield
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: yield-engine }
+  template:
+    metadata:
+      labels: { app: yield-engine }
+    spec:
+      containers:
+      - name: yield-engine
+        image: nri-yield/yield-engine:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8082
+        envFrom:
+        - configMapRef: { name: nri-config }
+        livenessProbe:
+          httpGet: { path: /health/live, port: 8082 }
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet: { path: /health/ready, port: 8082 }
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests: { cpu: "200m", memory: "256Mi" }
+          limits: { cpu: "1000m", memory: "512Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yield-engine
+  namespace: nri-yield
+spec:
+  selector: { app: yield-engine }
+  ports:
+  - port: 8082
+    targetPort: 8082
+    name: http
+  - port: 8083
+    targetPort: 8082
+    name: ws
+  type: ClusterIP

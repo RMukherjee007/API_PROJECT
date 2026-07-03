@@ -1,28 +1,59 @@
 {
-  "name": "csb_bank_api_project-main",
-  "version": "1.0.0",
-  "description": "![Version](https://img.shields.io/badge/version-1.6.1-blue.svg) ![Status](https://img.shields.io/badge/status-Production_Ready-success.svg) ![Compliance](https://img.shields.io/badge/compliance-RBI_Guidelines-critical.svg) ![Latency](https://img.shields.io/badge/p95_latency-%3C250ms-brightgreen.svg)",
-  "main": "index.js",
+  "name": "nri-yield-advisory",
+  "version": "3.0.0",
+  "description": "NRI Yield Advisory Platform — secure FCNR vs NRE money-placement advice using live market rates, forward premiums, portfolio assets/liabilities, audited suggestion history, and downloadable recommendation reports",
+  "main": "start.js",
   "scripts": {
     "start": "node start.js",
-    "start:esb": "node src/esb/index.js",
-    "start:microservice": "node src/microservice/index.js",
     "start:gateway": "node src/gateway/index.js",
-    "start:frontend": "node src/frontend/index.js"
+    "start:yield-engine": "node src/yield-engine/src/index.js",
+    "start:esb": "node src/esb/index.js",
+    "start:frontend": "node src/frontend/index.js",
+    "start:audit": "node src/audit-service/src/index.js",
+    "start:bank": "node src/bank-integration-service/src/index.js",
+    "start:auth": "node src/auth-service/src/index.js",
+    "start:all": "concurrently -n AUTH,BANK,AUDIT,ESB,YE,GW,FE -c blue,magenta,cyan,yellow,green,red,white \"npm:start:auth\" \"npm:start:bank\" \"npm:start:audit\" \"npm:start:esb\" \"npm:start:yield-engine\" \"npm:start:gateway\" \"npm:start:frontend\"",
+    "test": "node test-api.js",
+    "test:security": "node scripts/security-smoke.js",
+    "test:unit": "jest",
+    "lint": "echo 'No linter configured'"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "nri",
+    "fcnr",
+    "nre",
+    "yield",
+    "banking",
+    "microservice",
+    "cbs",
+    "portfolio",
+    "advisory"
+  ],
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "helmet": "^8.2.0",
-    "morgan": "^1.11.0",
+    "bcryptjs": "^2.4.3",
+    "compression": "^1.7.5",
+    "concurrently": "^9.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "ioredis": "^5.4.2",
+    "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.22.5",
-    "redis": "^6.0.0",
-    "sqlite3": "^6.0.1",
-    "uuid": "^14.0.0"
+    "pdfkit": "^0.16.0",
+    "prom-client": "^15.1.3",
+    "rate-limit-redis": "^4.2.0",
+    "uuid": "^11.0.5",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^5.0.0"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2"
   }
 }

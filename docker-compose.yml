@@ -1,80 +1,146 @@
 services:
-  nri-redis:
+  mysql:
+    image: mysql:8
+    container_name: nri-mysql
+    ports: ["3306:3306"]
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=csb_bank
+    healthcheck: { test: ["CMD", "mysqladmin", "ping", "-h", "localhost"], interval: 10s, timeout: 5s, retries: 5 }
+
+  redis:
     image: redis:7-alpine
     container_name: nri-redis
-    ports:
-      - "6379:6379"
+    ports: ["6379:6379"]
+    healthcheck: { test: ["CMD","redis-cli","ping"], interval: 10s, timeout: 3s, retries: 5 }
 
-  nri-mysql:
-    image: mysql:8.0
-    container_name: nri-mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: nri_audit
-      MYSQL_USER: nri_user
-      MYSQL_PASSWORD: nri_password
-    ports:
-      - "3306:3306"
-    volumes:
-      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
-
-  nri-esb:
-    image: node:18-alpine
+  esb:
+    build:
+      context: .
+      dockerfile: src/esb/Dockerfile
     container_name: nri-esb
-    working_dir: /app
-    volumes:
-      - ./:/app
-    command: npm run start:esb
-    ports:
-      - "8081:8081"
+    ports: ["8081:8081"]
     environment:
-      - PORT=8081
+      - NODE_ENV=${NODE_ENV:-development}
+      - ESB_PORT=8081
+      - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
+    healthcheck: { test: ["CMD","wget","--spider","http://localhost:8081/health/live"], interval: 15s, timeout: 5s, retries: 3 }
 
-  nri-microservice:
-    image: node:18-alpine
-    container_name: nri-microservice
-    working_dir: /app
-    volumes:
-      - ./:/app
-    command: npm run start:microservice
-    ports:
-      - "8082:8082"
+  auth:
+    build:
+      context: .
+      dockerfile: src/auth-service/Dockerfile
+    container_name: nri-auth
+    ports: ["8083:8083"]
     environment:
-      - PORT=8082
-      - MYSQL_HOST=nri-mysql
-      - MYSQL_USER=nri_user
-      - MYSQL_PASSWORD=nri_password
-      - MYSQL_DATABASE=nri_audit
+      - NODE_ENV=${NODE_ENV:-development}
+      - AUTH_PORT=8083
+      - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
+      - CORS_ORIGINS=http://localhost:3000
+    healthcheck: { test: ["CMD","wget","--spider","http://localhost:8083/health/live"], interval: 15s, timeout: 5s, retries: 3 }
+
+  audit:
+    build:
+      context: .
+      dockerfile: src/audit-service/Dockerfile
+    container_name: nri-audit
+    ports: ["8084:8084"]
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - AUDIT_PORT=8084
+      - STORAGE_DRIVER=mysql
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=root
+      - MYSQL_DATABASE=csb_bank
+      - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
+      - YIELD_ENGINE_URL=http://yield-engine:8082
+      - CORS_ORIGINS=http://localhost:3000
     depends_on:
-      - nri-mysql
+      mysql: { condition: service_healthy }
+    healthcheck: { test: ["CMD","wget","--spider","http://localhost:8084/health/live"], interval: 15s, timeout: 5s, retries: 3 }
 
-  nri-gateway:
-    image: node:18-alpine
+  yield-engine:
+    build:
+      context: .
+      dockerfile: src/yield-engine/Dockerfile
+    container_name: nri-yield-engine
+    ports: ["8082:8082"]
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - YIELD_ENGINE_PORT=8082
+      - RATE_UPDATE_INTERVAL_MS=60000
+      - AUDIT_SERVICE_URL=http://audit:8084
+      - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
+      - CORS_ORIGINS=http://localhost:3000
+      - FX_FEED_PROVIDER=${FX_FEED_PROVIDER:-open-er-api}
+      - TMS_MARKET_DATA_URL=${TMS_MARKET_DATA_URL:-}
+    depends_on:
+      audit: { condition: service_started }
+    healthcheck: { test: ["CMD","wget","--spider","http://localhost:8082/health/live"], interval: 15s, timeout: 5s, retries: 3 }
+
+  bank:
+    build:
+      context: .
+      dockerfile: src/bank-integration-service/Dockerfile
+    container_name: nri-bank
+    ports: ["8085:8085"]
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - BANK_PORT=8085
+      - ESB_URL=http://esb:8081
+      - BANK_LIVE_MODE=${BANK_LIVE_MODE:-false}
+      - CBS_ADAPTER_URL=${CBS_ADAPTER_URL:-}
+      - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
+      - CORS_ORIGINS=http://localhost:3000
+    depends_on:
+      esb: { condition: service_started }
+    healthcheck: { test: ["CMD","wget","--spider","http://localhost:8085/health/live"], interval: 15s, timeout: 5s, retries: 3 }
+
+  gateway:
+    build:
+      context: .
+      dockerfile: src/gateway/Dockerfile
     container_name: nri-gateway
-    working_dir: /app
-    volumes:
-      - ./:/app
-    command: npm run start:gateway
-    ports:
-      - "8080:8080"
+    ports: ["8080:8080"]
     environment:
-      - PORT=8080
-      - ESB_URL=http://nri-esb:8081
-      - MICROSERVICE_URL=http://nri-microservice:8082
-      - REDIS_URL=redis://nri-redis:6379
+      - NODE_ENV=${NODE_ENV:-development}
+      - GATEWAY_PORT=8080
+      - YIELD_ENGINE_URL=http://yield-engine:8082
+      - ESB_URL=http://esb:8081
+      - AUTH_SERVICE_URL=http://auth:8083
+      - AUDIT_SERVICE_URL=http://audit:8084
+      - BANK_INTEGRATION_SERVICE_URL=http://bank:8085
+      - REDIS_URL=redis://redis:6379
+      - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
+      - CORS_ORIGINS=http://localhost:3000
+      - CBS_CACHE_TTL_SECONDS=120
     depends_on:
-      - nri-redis
-      - nri-esb
-      - nri-microservice
+      redis: { condition: service_healthy }
+      yield-engine: { condition: service_started }
+      auth: { condition: service_started }
+      audit: { condition: service_started }
+      bank: { condition: service_started }
+      esb: { condition: service_started }
+    healthcheck: { test: ["CMD","wget","--spider","http://localhost:8080/health/live"], interval: 15s, timeout: 5s, retries: 3 }
 
-  nri-frontend:
-    image: node:18-alpine
+  frontend:
+    build:
+      context: .
+      dockerfile: src/frontend/Dockerfile
     container_name: nri-frontend
-    working_dir: /app
-    volumes:
-      - ./:/app
-    command: npm run start:frontend
-    ports:
-      - "3000:3000"
+    ports: ["3000:3000"]
     environment:
-      - PORT=3000
+      - NODE_ENV=${NODE_ENV:-development}
+      - FRONTEND_PORT=3000
+      - PUBLIC_API_BASE=http://gateway:8080
+      - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
+    depends_on: [gateway]
