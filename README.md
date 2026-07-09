@@ -90,7 +90,6 @@ The `k8s/` directory contains all necessary manifests to deploy the platform to 
    kubectl apply -f k8s/configmap.yaml
    kubectl apply -f k8s/network-policy.yaml
    ```
-   *(Note: The provided Kubernetes manifests are incomplete. As per `HANDOFF/07_DEPLOYMENT.md`, deployment files for `auth-service`, `audit-service`, and `bank-integration-service` must be created before deploying.)*
 
 4. **Deploy Services:**
    ```bash

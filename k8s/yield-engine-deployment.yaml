@@ -24,6 +24,7 @@ spec:
         - containerPort: 8082
         envFrom:
         - configMapRef: { name: nri-config }
+        - secretRef: { name: nri-secrets }
         livenessProbe:
           httpGet: { path: /health/live, port: 8082 }
           initialDelaySeconds: 10

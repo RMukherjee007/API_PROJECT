@@ -25,7 +25,7 @@ docker push <your-registry>/gateway:latest
 
 You will need to repeat this for all services. Remember to update the `image` field in the Kubernetes `Deployment` files to point to your registry.
 
-**Note:** The provided Kubernetes manifests in the `k8s` directory do not include deployment files for `auth-service`, `audit-service`, and `bank-integration-service`. These will need to be created, likely by using the existing deployment files as templates.
+**Note:** The provided Kubernetes manifests in the `k8s` directory now include deployment files for all services, including `auth-service`, `audit-service`, and `bank-integration-service`.
 
 ## 2. Create the Namespace
 
@@ -79,7 +79,10 @@ kubectl apply -f k8s/yield-engine-deployment.yaml
 kubectl apply -f k8s/gateway-deployment.yaml
 kubectl apply -f k8s/frontend-deployment.yaml
 
-# Remember to create and apply deployments for auth, audit, and bank services as well.
+# Deploy auth, audit, and bank services
+kubectl apply -f k8s/auth-deployment.yaml
+kubectl apply -f k8s/audit-deployment.yaml
+kubectl apply -f k8s/bank-deployment.yaml
 ```
 
 This will create the `Deployments` and `Services` for each microservice.

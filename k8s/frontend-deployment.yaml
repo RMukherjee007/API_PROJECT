@@ -24,6 +24,7 @@ spec:
         - containerPort: 3000
         envFrom:
         - configMapRef: { name: nri-config }
+        - secretRef: { name: nri-secrets }
         resources:
           requests: { cpu: "50m", memory: "64Mi" }
           limits: { cpu: "200m", memory: "128Mi" }

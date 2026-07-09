@@ -24,12 +24,7 @@ spec:
         - containerPort: 8085
         envFrom:
         - configMapRef: { name: nri-config }
-        env:
-        - name: HMAC_SHARED_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: nri-secrets
-              key: HMAC_SHARED_SECRET
+        - secretRef: { name: nri-secrets }
         livenessProbe:
           httpGet: { path: /health/live, port: 8085 }
           initialDelaySeconds: 10
