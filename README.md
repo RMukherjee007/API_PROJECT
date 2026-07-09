@@ -106,7 +106,7 @@ The `k8s/` directory contains all necessary manifests to deploy the platform to 
 
 ## Security & Compliance
 
-This platform has undergone rigorous security audits to comply with enterprise banking standards (OWASP Top 10 & API Security):
+This platform has undergone rigorous security audits to comply with enterprise banking standards:
 - **Zero Trust Network:** All service-to-service calls are explicitly authenticated using short-lived HMAC signatures.
 - **Container Hardening:** Containers drop privileges, running as `UID 1000` (Node user) with `readOnlyRootFilesystem: true`.
 - **Authorization:** Strict Role-Based Access Control (RBAC). RMs can only view their own audit logs, while Auditors have global visibility (mitigating IDOR vulnerabilities).
