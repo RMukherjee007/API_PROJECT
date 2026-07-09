@@ -30,11 +30,10 @@ The project uses a `.env` file to manage environment variables. A `.env.example`
 
     Open the `.env` file and fill in any missing values, especially secrets. For local development, you will need to provide values for:
 
-    You will need to set a password for the `app_user` in your `.env` file.
+    You will need to configure `MYSQL_PASSWORD` for the `app_user` database user.
 
     -   `HMAC_SHARED_SECRET`: A secret key for HMAC signature validation.
     -   `JWT_SECRET`: A secret key for signing and verifying JSON Web Tokens.
-    -   `AUTH_DEMO_PASSWORD`: A password for the default demo users.
     -   `MYSQL_PASSWORD`: The password for the `app_user` database user.
 
     You can generate secure random strings for the secrets.

@@ -70,9 +70,7 @@ if (isProd) {
   if (parseInt10(process.env.BCRYPT_ROUNDS, 10) < 12) {
     throw new Error('Refusing to start in production with BCRYPT_ROUNDS below 12.');
   }
-  if (parseBool(process.env.AUTH_SEED_DEMO_USERS, false)) {
-    throw new Error('Refusing to seed demo users in production. Set AUTH_SEED_DEMO_USERS=false and provision users through IAM/onboarding.');
-  }
+
   requireProductionEnv('CBS_ADAPTER_URL');
   requireProductionEnv('TMS_MARKET_DATA_URL');
 }

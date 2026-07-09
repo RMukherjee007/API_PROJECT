@@ -69,9 +69,9 @@ Once running, the primary access points are:
 - **Frontend UI:** `http://localhost:3000`
 - **API Gateway:** `http://localhost:8080`
 
-**Test Accounts:**
-- **RM User:** `rm.test@csb.co.in` (Password: `password123`)
-- **Admin User:** `raghav.mukherjee@csb.co.in` (Password: `HelloWorld@1729`)
+**Authentication:**
+- Authentication is currently bypassed with a placeholder SSO user. 
+- Bank IAM/SSO integration should be configured in `auth-service` for production.
 
 *(Note: Market Rates and Manual Overrides are hidden/restricted for standard RM roles.)*
 

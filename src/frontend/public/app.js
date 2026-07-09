@@ -207,15 +207,13 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email: document.getElementById('loginEmail').value,
-        password: document.getElementById('loginPassword').value
+        // Placeholder for IAM integration:
+        // bank_sso_token: "..."
       })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || data.title || 'Login failed');
     // No need to handle tokens in JS. The browser stores the HttpOnly cookie.
-    document.getElementById('loginEmail').value = '';
-    document.getElementById('loginPassword').value = '';
     await updateAuthState();
     status.textContent = '';
   } catch (err) {

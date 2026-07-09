@@ -35,10 +35,10 @@ End-user authentication is handled using JSON Web Tokens (JWT). This is the stan
 
 ### How it Works
 
-1.  A user logs in with their credentials (e.g., username and password).
-2.  The `auth-service` validates the credentials and, if successful, issues a signed JWT.
-3.  This JWT is sent to the frontend application, which stores it securely.
-4.  For all subsequent requests to protected API endpoints, the frontend includes the JWT in the `Authorization` header as a `Bearer` token.
+1.  A user logs in via the Bank's external Identity and Access Management (IAM) or Single Sign-On (SSO) provider.
+2.  The `auth-service` (or API Gateway) validates the Bank's SSO token and issues a platform-specific JWT. *(Note: Currently implemented as a placeholder stub.)*
+3.  This JWT is set as an HttpOnly, secure cookie by the `auth-service`.
+4.  For all subsequent requests to protected API endpoints, the browser automatically includes the cookie.
 5.  The API Gateway and other services use middleware to verify the JWT's signature and expiration time. If the token is valid, the user is considered authenticated.
 
 The JWT payload contains information about the user, including their `employeeId` and `role`.

@@ -54,18 +54,7 @@ const pool = mysql.createPool(config.storage.mysql);
 
 async function initDb() {
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        employee_id VARCHAR(255) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        role VARCHAR(255) NOT NULL,
-        branch_code VARCHAR(255),
-        active TINYINT DEFAULT 1,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS refresh_tokens (
         jti VARCHAR(255) PRIMARY KEY,
@@ -82,14 +71,17 @@ async function initDb() {
 
 initDb();
 
-async function findUserByEmail(email) {
-  const [rows] = await pool.query(`SELECT * FROM users WHERE lower(email) = lower(?) AND active = 1`, [email]);
-  return rows[0];
-}
-
 async function findUserById(id) {
-  const [rows] = await pool.query(`SELECT employee_id, name, email, role, branch_code, active FROM users WHERE employee_id = ?`, [id]);
-  return rows[0];
+  // TODO: Fetch user from the Bank's IAM system during token refresh.
+  // Returning the placeholder user for now.
+  return {
+    employee_id: 'EMP-PLACEHOLDER',
+    name: 'Placeholder SSO User',
+    email: 'sso.placeholder@csb.co.in',
+    role: 'RM',
+    branch_code: 'HQ',
+    active: 1
+  };
 }
 
 async function insertRefreshToken(jti, employeeId, ttlSeconds) {
@@ -160,12 +152,15 @@ function authenticateJwt(req, res, next) {
 // === Endpoints ===
 
 app.post('/api/v1/auth/login', async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) return sendProblemJson(res, 400, 'MISSING_REQUIRED_FIELD', 'email and password are required', req.traceparent);
-  const user = await findUserByEmail(email);
-  if (!user) return sendProblemJson(res, 401, 'INVALID_CREDENTIALS', 'Invalid email or password.', req.traceparent);
-  const ok = await bcrypt.compare(password, user.password_hash);
-  if (!ok) return sendProblemJson(res, 401, 'INVALID_CREDENTIALS', 'Invalid email or password.', req.traceparent);
+  // TODO: Replace this placeholder with the Bank's actual IAM/SSO integration.
+  // The bank will validate their own SSO tokens here.
+  const user = {
+    employee_id: 'EMP-PLACEHOLDER',
+    name: 'Placeholder SSO User',
+    email: 'sso.placeholder@csb.co.in',
+    role: 'RM',
+    branch_code: 'HQ'
+  };
 
   const access = signAccessToken(user);
   const { token: refresh, jti } = signRefreshToken(user);
