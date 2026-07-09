@@ -1,4 +1,4 @@
-NRI Yield Tool
+# NRI Yield Tool
 
 An enterprise-grade, microservices-based advisory platform designed for CSB Bank's Relationship Managers (RMs). This platform provides intelligent, multi-currency yield optimization recommendations for NRI (Non-Resident Indian) clients, cross-referencing Core Banking System (CBS) portfolio data with live Treasury/FX rates.
 
