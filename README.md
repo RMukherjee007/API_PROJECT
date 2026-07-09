@@ -4,7 +4,7 @@ An enterprise-grade, microservices-based advisory platform designed for CSB Bank
 
 ## Architecture Overview
 
-The NRI Yield Advisory Tool is built on a distributed microservices architecture using Node.js, Express, Redis, MySQL, and PostgreSQL. It bridges the gap between client banking profiles (fetched from Core Banking Systems) and real-time Treasury/Market rates to advise Relationship Managers (RMs) and NRI clients on optimal money placement.
+The NRI Yield Advisory Tool is built on a distributed microservices architecture using Node.js, Express, Redis, MySQL. It bridges the gap between client banking profiles (fetched from Core Banking Systems) and real-time Treasury/Market rates to advise Relationship Managers (RMs) and NRI clients on optimal money placement.
 
 The system is built as a suite of highly decoupled Node.js microservices:
 
