@@ -155,12 +155,23 @@ function generatePdfReport(result) {
         if (meta.override_ticket_id) doc.text(`Ticket: ${meta.override_ticket_id}`);
       }
 
+      // Signature Block - HMAC of the decision trace ensures report integrity
+      const decisionTraceString = JSON.stringify(result.decision_trace);
+      const signature = crypto
+        .createHmac('sha256', config.security.hmacSharedSecret)
+        .update(decisionTraceString)
+        .digest('hex');
+
+      doc.moveDown(1);
+      doc.fontSize(8).font('Helvetica-Oblique').fillColor(muted).text('Report Integrity Signature:', { continued: true }).font('Courier').text(` ${signature}`, { lineBreak: false });
+
       // Footer
-      doc.moveDown(1.5);
+      doc.moveDown(0.5);
       doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e0e0e0').stroke();
       doc.moveDown(0.5);
       doc.fontSize(8).font('Helvetica').fillColor(muted)
         .text('This report is for informational purposes only. Final investment decisions should be made in consultation with a qualified financial advisor.', { align: 'center' });
+
 
       doc.end();
     } catch (err) {

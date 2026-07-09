@@ -146,6 +146,28 @@ class LiveRateFeed {
   getProvider() { return this.provider; }
   getHistory() { return this.history; }
 
+  _validateSnapshot(snapshot) {
+    // Cannot validate the first snapshot or if the feed was previously down.
+    if (!this.live || this.history.length === 0) {
+      return null;
+    }
+    const previous = this.feed.spot;
+    const current = snapshot.spot;
+    const maxDeviation = 0.10; // 10% max change in one interval. Should be configurable.
+
+    for (const pair in current) {
+      if (previous[pair]) {
+        const prevRate = parseFloat(previous[pair]);
+        const currRate = parseFloat(current[pair]);
+        const deviation = Math.abs(currRate - prevRate) / prevRate;
+        if (deviation > maxDeviation) {
+          return `Rate for ${pair} deviated by ${(deviation * 100).toFixed(2)}% which is over the ${(maxDeviation * 100)}% threshold.`;
+        }
+      }
+    }
+    return null; // All good
+  }
+
   async fetchLiveRates() {
     try {
       const snapshot = await fetchBankTmsRates();
@@ -153,6 +175,12 @@ class LiveRateFeed {
       let updated = 0;
       for (const [pair, rate] of Object.entries(snapshot.spot)) {
         if (this.feed.spot[pair] !== rate) {
+          // NEW: Add a sanity check layer before accepting the new rate.
+          const validationError = this._validateSnapshot(snapshot);
+          if (validationError) {
+            throw new Error(`Rate snapshot failed validation: ${validationError}`);
+          }
+
           this.feed.spot[pair] = rate;
           updated++;
         }

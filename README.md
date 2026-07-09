@@ -4,7 +4,7 @@ An enterprise-grade, microservices-based advisory platform designed for CSB Bank
 
 ## Architecture Overview
 
-The NRI Yield Tool is built on a distributed microservices architecture using Node.js, Express, Redis, MySQL, and PostgreSQL. It bridges the gap between client banking profiles (fetched from Core Banking Systems) and real-time Treasury/Market rates to advise Relationship Managers (RMs) and NRI clients on optimal money placement.
+The NRI Yield Advisory Tool is built on a distributed microservices architecture using Node.js, Express, Redis, MySQL, and PostgreSQL. It bridges the gap between client banking profiles (fetched from Core Banking Systems) and real-time Treasury/Market rates to advise Relationship Managers (RMs) and NRI clients on optimal money placement.
 
 The system is built as a suite of highly decoupled Node.js microservices:
 
@@ -54,22 +54,24 @@ The easiest way to run the entire stack locally is using Docker Compose. It will
    ```bash
    npm run start:all
    ```
-   Alternatively, you can run individual services:
-   - API Gateway: `npm run start:gateway` (Port 3000)
-   - Auth Service: `npm run start:auth` (Port 3001)
-   - Yield Engine: `npm run start:yield-engine` (Port 3002)
-   - Audit Service: `npm run start:audit` (Port 3003)
-   - ESB Stub: `npm run start:esb` (Port 3005)
-   - Bank Integration: `npm run start:bank` (Port 3006)
-   - Frontend BFF: `npm run start:frontend` (Port 8080)
+   Alternatively, you can run individual services (ports may vary based on `.env` config):
+   - API Gateway: `npm run start:gateway`
+   - Auth Service: `npm run start:auth`
+   - Yield Engine: `npm run start:yield-engine`
+   - Audit Service: `npm run start:audit`
+   - ESB Stub: `npm run start:esb`
+   - Bank Integration: `npm run start:bank`
+   - Frontend BFF: `npm run start:frontend`
 
 ## Accessing the UI
 
-Once running locally, the UI is available at `http://localhost:8080/` (or `http://localhost:3000` via Docker).
+Once running, the primary access points are:
+- **Frontend UI:** `http://localhost:3000`
+- **API Gateway:** `http://localhost:8080`
 
 **Test Accounts:**
-- **RM User:** `rm@bank.com` / `password123` (or `rm.test@csb.co.in`)
-- **Admin User:** `admin@bank.com` / `password123` (or `raghav.mukherjee@csb.co.in` / `HelloWorld@1729`)
+- **RM User:** `rm.test@csb.co.in` (Password: `password123`)
+- **Admin User:** `raghav.mukherjee@csb.co.in` (Password: `HelloWorld@1729`)
 
 *(Note: Market Rates and Manual Overrides are hidden/restricted for standard RM roles.)*
 
@@ -88,14 +90,13 @@ The `k8s/` directory contains all necessary manifests to deploy the platform to 
    kubectl apply -f k8s/configmap.yaml
    kubectl apply -f k8s/network-policy.yaml
    ```
+   *(Note: The provided Kubernetes manifests are incomplete. As per `HANDOFF/07_DEPLOYMENT.md`, deployment files for `auth-service`, `audit-service`, and `bank-integration-service` must be created before deploying.)*
+
 4. **Deploy Services:**
    ```bash
    kubectl apply -f k8s/redis-deployment.yaml
    kubectl apply -f k8s/esb-deployment.yaml
-   kubectl apply -f k8s/bank-deployment.yaml
    kubectl apply -f k8s/yield-engine-deployment.yaml
-   kubectl apply -f k8s/audit-deployment.yaml
-   kubectl apply -f k8s/auth-deployment.yaml
    kubectl apply -f k8s/gateway-deployment.yaml
    kubectl apply -f k8s/frontend-deployment.yaml
    ```

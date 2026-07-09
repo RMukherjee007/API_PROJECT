@@ -136,7 +136,8 @@ async function publishToAuditService(record) {
       log.warn('audit_publish_non_ok', { status: r.status });
     }
   } catch (err) {
-    log.warn('audit_publish_failed', { error: err.message });
+    // Sanitize error message to prevent potential log injection if it contains newlines.
+    log.warn('audit_publish_failed', { error: err.message.replace(/(\r\n|\n|\r)/gm, ' ') });
   }
 }
 
@@ -211,7 +212,7 @@ app.post('/optimize', async (req, res) => {
   };
 
   // Fire-and-forget: persist to audit-service.
-  publishToAuditService(auditRecord).catch(() => {});
+  publishToAuditService(auditRecord).catch(() => { });
 
   metrics.optimizeTotal.inc({
     recommended_product: result.advisory.recommended_product,
@@ -229,7 +230,7 @@ app.get('/recommendations/:recommendation_id', (req, res) => {
   const local = getRecentOptimization(req.params.recommendation_id);
   const employeeId = req.headers['x-employee-id'];
   const userRole = req.headers['x-user-role'];
-  
+
   if (!local) {
     // try audit-service
     safeFetch(`${config.services.auditUrl}/api/v1/audit/recommendations/${encodeURIComponent(req.params.recommendation_id)}`, {
@@ -249,7 +250,7 @@ app.get('/recommendations/:recommendation_id', (req, res) => {
       .catch(() => sendProblemJson(res, 404, 'RECOMMENDATION_NOT_FOUND', `No recommendation found for ID "${req.params.recommendation_id}".`, traceparent));
     return;
   }
-  
+
   if (userRole !== 'ADMIN' && userRole !== 'AUDITOR' && local.ctx?.employeeId !== employeeId) {
     return sendProblemJson(res, 403, 'FORBIDDEN', 'You do not have permission to view this recommendation.', traceparent);
   }
@@ -280,15 +281,15 @@ app.get('/rates', (req, res) => {
 app.get('/recent-suggestions', (req, res) => {
   const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 50));
   let items = listRecentOptimizations(limit);
-  
+
   const employeeId = req.headers['x-employee-id'];
   const userRole = req.headers['x-user-role'];
   const filterEmpId = (userRole === 'ADMIN' || userRole === 'AUDITOR') ? req.query.employee_id : employeeId;
-  
+
   if (filterEmpId) {
     items = items.filter(i => i.employee_id === filterEmpId);
   }
-  
+
   res.status(200).json({ total: items.length, page: 1, limit, pages: 1, logs: items });
 });
 

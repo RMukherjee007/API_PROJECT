@@ -41,6 +41,7 @@
     "compression": "latest",
     "concurrently": "latest",
     "cors": "latest",
+    "decimal.js": "^10.6.0",
     "dotenv": "latest",
     "express": "latest",
     "express-rate-limit": "latest",

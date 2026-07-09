@@ -98,10 +98,9 @@ describe('AlmPolicyEngine', () => {
     });
 
     // Multiplier:
-    // base = 1.0
-    // isLongTerm => base * 0.8 = 0.8
-    // multiplier = 0.8 * 2.0 = 1.6
-    // penalty = 0.25 * 1.6 = 0.4
+    // riskMultiplier from debt ratio (4.0) = 1.0 (base) + 0.5 (>1.0) + 0.5 (>2.0) = 2.0
+    // tenureMonths (48) >= 36, so apply discount: 2.0 * 0.8 = 1.6
+    // final penalty = basePenalty (0.25) * 1.6 = 0.4
 
     expect(penalty).toBeCloseTo(0.4);
   });

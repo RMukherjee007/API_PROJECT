@@ -9,6 +9,7 @@
  */
 
 const { randomUUID } = require('crypto');
+const Decimal = require('decimal.js');
 const { formatCurrency } = require('../../shared/utils/helpers');
 const config = require('../../shared/config');
 const { AlmPolicyEngine } = require('./almPolicyEngine');
@@ -30,9 +31,9 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DECIMAL_GENERIC = /^\d+\.\d{2,6}$/;
 
 function calculateRealYield(nominalYieldPct, inflationPct) {
-  const nominal = nominalYieldPct / 100;
-  const inflation = inflationPct / 100;
-  return (((1 + nominal) / (1 + inflation)) - 1) * 100;
+  const nominal = new Decimal(nominalYieldPct).div(100);
+  const inflation = new Decimal(inflationPct).div(100);
+  return nominal.plus(1).div(inflation.plus(1)).minus(1).times(100).toNumber();
 }
 
 function resolveYieldCurveRate(curve, tenureMonths) {
@@ -47,13 +48,14 @@ function resolveYieldCurveRate(curve, tenureMonths) {
 }
 
 function calculateMaturityMultiplier(ratePct, tenureMonths) {
-  const r = ratePct / 100;
-  const T = tenureMonths / 12;
+  const r = new Decimal(ratePct).div(100);
+  const T = new Decimal(tenureMonths).div(12);
   if (tenureMonths < 12) {
-    return 1 + (r * T);
+    return new Decimal(1).plus(r.times(T)).toNumber();
   }
-  const n = 4;
-  return Math.pow(1 + (r / n), n * T);
+  const n = new Decimal(4);
+  const exponent = n.times(T).toNumber(); // pow accepts numbers
+  return new Decimal(1).plus(r.div(n)).pow(exponent).toNumber();
 }
 
 function validateOptimizeRequest(body, traceparent, rateFeed) {
@@ -131,19 +133,19 @@ function validateOptimizeRequest(body, traceparent, rateFeed) {
 
   // NEW: Principal minimum check (FCNR(B) RBI minimum is USD 1,000 equivalent).
   if (body.base_currency !== 'INR') {
-    const principal = parseFloat(body.principal_amount);
+    const principal = new Decimal(body.principal_amount);
     let principalUsd = principal;
     try {
       const feed = rateFeed.getFeed();
       if (body.base_currency !== 'USD') {
         const usdInr = parseFloat(feed.spot['USD/INR']);
         const ccyInr = parseFloat(feed.spot[`${body.base_currency}/INR`] || feed.spot[`USD/${body.base_currency}`]);
-        if (usdInr && ccyInr) principalUsd = (principal * ccyInr) / usdInr;
+        if (usdInr && ccyInr) principalUsd = principal.times(ccyInr).div(usdInr);
         else principalUsd = NaN; // Force failure if rates are missing
       }
       // Explicitly check for NaN to prevent bypass on feed error
-      if (isNaN(principalUsd)) throw new Error('Could not convert principal to USD due to missing FX rates.');
-      if (principalUsd < config.business.minPrincipalUsd) {
+      if (Number.isNaN(principalUsd) || (principalUsd instanceof Decimal && principalUsd.isNaN())) throw new Error('Could not convert principal to USD due to missing FX rates.');
+      if ((principalUsd instanceof Decimal ? principalUsd.toNumber() : principalUsd) < config.business.minPrincipalUsd) {
         return {
           status: 422,
           errorCode: 'PRINCIPAL_BELOW_MINIMUM',
@@ -180,9 +182,9 @@ function validateOptimizeRequest(body, traceparent, rateFeed) {
     if (body.fx_rate_overrides.forward_rates && body.base_currency !== 'INR') {
       const pair = `${body.base_currency}/INR`;
       for (const tenureKey of Object.keys(body.fx_rate_overrides.forward_rates)) {
-        const liveFwd = parseFloat(feed.forward[pair]?.[tenureKey] || feed.spot[pair]);
-        const overrideFwd = parseFloat(body.fx_rate_overrides.forward_rates[tenureKey]);
-        const deviation = Math.abs(overrideFwd - liveFwd) / liveFwd * 100;
+        const liveFwd = new Decimal(feed.forward[pair]?.[tenureKey] || feed.spot[pair]);
+        const overrideFwd = new Decimal(body.fx_rate_overrides.forward_rates[tenureKey]);
+        const deviation = overrideFwd.minus(liveFwd).abs().div(liveFwd).times(100).toNumber();
         if (deviation > config.business.fwdOverrideCapPct) {
           return { status: 422, errorCode: 'RATE_OVERRIDE_LIMIT_EXCEEDED', detail: `Forward rate override deviates ${deviation.toFixed(2)}% from market. Max allowed: ${config.business.fwdOverrideCapPct}%.`, invalidFields: { [`fx_rate_overrides.forward_rates.${tenureKey}`]: `deviation exceeds ${config.business.fwdOverrideCapPct}% limit` } };
         }
@@ -190,10 +192,10 @@ function validateOptimizeRequest(body, traceparent, rateFeed) {
     }
     if (body.fx_rate_overrides.product_spot_rate && body.base_currency !== 'INR') {
       const pair = `${body.base_currency}/INR`;
-      const liveSpot = parseFloat(feed.spot[pair]);
-      const overrideSpot = parseFloat(body.fx_rate_overrides.product_spot_rate);
-      if (liveSpot && Number.isFinite(overrideSpot)) {
-        const deviation = Math.abs(overrideSpot - liveSpot) / liveSpot * 100;
+      const liveSpot = new Decimal(feed.spot[pair] || NaN);
+      const overrideSpot = new Decimal(body.fx_rate_overrides.product_spot_rate);
+      if (!liveSpot.isNaN() && !overrideSpot.isNaN()) {
+        const deviation = overrideSpot.minus(liveSpot).abs().div(liveSpot).times(100).toNumber();
         if (deviation > config.business.fwdOverrideCapPct) {
           return { status: 422, errorCode: 'RATE_OVERRIDE_LIMIT_EXCEEDED', detail: `Spot rate override deviates ${deviation.toFixed(2)}% from market. Max allowed: ${config.business.fwdOverrideCapPct}%.`, invalidFields: { 'fx_rate_overrides.product_spot_rate': `deviation exceeds ${config.business.fwdOverrideCapPct}% limit` } };
         }
@@ -202,9 +204,9 @@ function validateOptimizeRequest(body, traceparent, rateFeed) {
   }
 
   if (body.market_rates_override && body.market_rates_override.fcnr_rate_pct !== undefined) {
-    const baseRate = parseFloat(rateFeed.getPolicyStore().fcnr[body.base_currency] || '5.0');
-    const overrideRate = parseFloat(body.market_rates_override.fcnr_rate_pct);
-    const deviation = Math.abs(overrideRate - baseRate);
+    const baseRate = new Decimal(rateFeed.getPolicyStore().fcnr[body.base_currency] || '5.0');
+    const overrideRate = new Decimal(body.market_rates_override.fcnr_rate_pct);
+    const deviation = overrideRate.minus(baseRate).abs().toNumber();
     if (deviation > config.business.fcnrOverrideCapPct) {
       return { status: 422, errorCode: 'RATE_OVERRIDE_LIMIT_EXCEEDED', detail: `FCNR rate override deviates ${deviation.toFixed(2)}% from policy. Max allowed: ${config.business.fcnrOverrideCapPct}%.`, invalidFields: { 'market_rates_override.fcnr_rate_pct': `deviation exceeds ${config.business.fcnrOverrideCapPct}% limit` } };
     }
@@ -218,15 +220,20 @@ function computeYield(body, ctx) {
   const { rateFeed, portfolioSource, userRole, employeeId, traceparent } = ctx;
   const { customer_id, risk_profile, principal_amount, base_currency, value_date, tenure_months, india_inflation_rate, foreign_inflation_rate, fx_rate_overrides, market_rates_override, assets = [], liabilities = [] } = body;
 
+  // BEST PRACTICE: For financial calculations, avoid using native floating-point arithmetic
+  // due to potential precision errors. Use a library like 'decimal.js' or handle money
+  // as integers (e.g., in cents).
+  // Example: const { Decimal } = require('decimal.js');
+  // const principal = new Decimal(principal_amount);
   const feed = rateFeed.getFeed();
   const policyStore = rateFeed.getPolicyStore();
-  const principal = parseFloat(principal_amount);
+  const principal = new Decimal(principal_amount);
 
   let usdEquivalent = principal;
   if (base_currency !== 'USD') {
     let principalInr = principal;
-    if (base_currency !== 'INR') principalInr = principal * parseFloat(feed.spot[`${base_currency}/INR`]);
-    usdEquivalent = principalInr / parseFloat(feed.spot['USD/INR']);
+    if (base_currency !== 'INR') principalInr = principal.times(feed.spot[`${base_currency}/INR`] || NaN);
+    usdEquivalent = principalInr.div(feed.spot['USD/INR'] || NaN);
   }
 
   let fcnrNominalPct = resolveYieldCurveRate(policyStore.fcnr[base_currency], tenure_months);
@@ -248,61 +255,64 @@ function computeYield(body, ctx) {
 
   if (base_currency !== 'INR') {
     const pair = `${base_currency}/INR`;
-    productSpotRate = fx_rate_overrides?.product_spot_rate ? parseFloat(fx_rate_overrides.product_spot_rate) : parseFloat(feed.spot[pair]);
+    productSpotRate = fx_rate_overrides?.product_spot_rate ? new Decimal(fx_rate_overrides.product_spot_rate) : new Decimal(feed.spot[pair] || NaN);
 
     const tenureKey = String(tenure_months);
     let forwardFromFeed = feed.forward[pair]?.[tenureKey];
     if (forwardFromFeed === undefined && !fx_rate_overrides?.forward_rates?.[tenureKey]) {
       throw new Error(`Insufficient forward rate granularity. No cached forward rate available for exactly ${tenure_months} months.`);
     }
-    productForwardRate = fx_rate_overrides?.forward_rates?.[tenureKey] ? parseFloat(fx_rate_overrides.forward_rates[tenureKey]) : parseFloat(forwardFromFeed);
+    productForwardRate = fx_rate_overrides?.forward_rates?.[tenureKey] ? new Decimal(fx_rate_overrides.forward_rates[tenureKey]) : new Decimal(forwardFromFeed);
 
-    const nreMultiplier = calculateMaturityMultiplier(nreNominalPct, tenure_months);
-    const usdReturnFactor = nreMultiplier * (productSpotRate / productForwardRate);
-    nreEffectiveYieldPct = (Math.pow(usdReturnFactor, 1 / T) - 1) * 100;
+    const nreMultiplier = new Decimal(calculateMaturityMultiplier(nreNominalPct, tenure_months));
+    const usdReturnFactor = nreMultiplier.times(productSpotRate).div(productForwardRate);
+    nreEffectiveYieldPct = usdReturnFactor.pow(1 / T).minus(1).times(100).toNumber();
+    
+    productSpotRate = productSpotRate.toNumber();
+    productForwardRate = productForwardRate.toNumber();
   }
 
-  let totalAssetsInr = 0, totalLiabilitiesInr = 0, weightedBankAssetsInr = 0;
+  let totalAssetsInr = new Decimal(0), totalLiabilitiesInr = new Decimal(0), weightedBankAssetsInr = new Decimal(0);
   const portfolioFxMatrix = {};
 
   for (const asset of assets) {
-    const val = parseFloat(asset.market_value);
-    if (asset.currency === 'INR') { totalAssetsInr += val; continue; }
+    const val = new Decimal(asset.market_value);
+    if (asset.currency === 'INR') { totalAssetsInr = totalAssetsInr.plus(val); continue; }
     const pair = `${asset.currency}/INR`;
-    let rate = parseFloat(feed.spot[pair]);
-    if (fx_rate_overrides?.portfolio_cross_rates?.[pair]) rate = parseFloat(fx_rate_overrides.portfolio_cross_rates[pair]);
-    if (isNaN(rate)) throw new Error(`Missing market rate for currency pair: ${pair}`);
+    let rate = new Decimal(feed.spot[pair] || NaN);
+    if (fx_rate_overrides?.portfolio_cross_rates?.[pair]) rate = new Decimal(fx_rate_overrides.portfolio_cross_rates[pair]);
+    if (rate.isNaN()) throw new Error(`Missing market rate for currency pair: ${pair}`);
     portfolioFxMatrix[pair] = rate.toFixed(6);
-    totalAssetsInr += val * rate;
+    totalAssetsInr = totalAssetsInr.plus(val.times(rate));
   }
 
   for (const liab of liabilities) {
-    const val = parseFloat(liab.outstanding_principal);
-    const weight = LIABILITY_WEIGHTS[liab.liability_type] || 1.0;
+    const val = new Decimal(liab.outstanding_principal);
+    const weight = new Decimal(LIABILITY_WEIGHTS[liab.liability_type] || 1.0);
     let valInr = val;
     if (liab.currency !== 'INR') {
       const pair = `${liab.currency}/INR`;
-      let rate = parseFloat(feed.spot[pair]);
-      if (fx_rate_overrides?.portfolio_cross_rates?.[pair]) rate = parseFloat(fx_rate_overrides.portfolio_cross_rates[pair]);
-      if (isNaN(rate)) throw new Error(`Missing market rate for currency pair: ${pair}`);
+      let rate = new Decimal(feed.spot[pair] || NaN);
+      if (fx_rate_overrides?.portfolio_cross_rates?.[pair]) rate = new Decimal(fx_rate_overrides.portfolio_cross_rates[pair]);
+      if (rate.isNaN()) throw new Error(`Missing market rate for currency pair: ${pair}`);
       portfolioFxMatrix[pair] = rate.toFixed(6);
-      valInr = val * rate;
+      valInr = val.times(rate);
     }
-    liab.outstanding_principal_inr = valInr; // CRITICAL FIX: Add the required field for ALM engine.
-    totalLiabilitiesInr += valInr;
-    weightedBankAssetsInr += valInr * weight;
+    liab.outstanding_principal_inr = valInr.toNumber(); // Required field for ALM engine
+    totalLiabilitiesInr = totalLiabilitiesInr.plus(valInr);
+    weightedBankAssetsInr = weightedBankAssetsInr.plus(valInr.times(weight));
   }
 
   const portfolioAvailable = portfolioSource !== 'NOT_AVAILABLE';
   let principalInr = principal;
   if (base_currency !== 'INR') {
-    const rate = parseFloat(portfolioFxMatrix[`${base_currency}/INR`] || feed.spot[`${base_currency}/INR`]);
-    if (isNaN(rate)) throw new Error(`Missing market rate for currency pair: ${base_currency}/INR`);
-    principalInr = principal * rate;
+    const rate = new Decimal(portfolioFxMatrix[`${base_currency}/INR`] || feed.spot[`${base_currency}/INR`] || NaN);
+    if (rate.isNaN()) throw new Error(`Missing market rate for currency pair: ${base_currency}/INR`);
+    principalInr = principal.times(rate);
   }
 
-  const clientAssetsForRatio = totalAssetsInr + principalInr;
-  const debtToAssetRatio = clientAssetsForRatio > 0 ? totalLiabilitiesInr / clientAssetsForRatio : 0;
+  const clientAssetsForRatio = totalAssetsInr.plus(principalInr);
+  const debtToAssetRatio = clientAssetsForRatio.gt(0) ? totalLiabilitiesInr.div(clientAssetsForRatio).toNumber() : 0;
 
   let almPenaltyApplied = false, almPenaltyPct = 0, almPenaltyAmount = 0;
   if (portfolioAvailable) {
@@ -312,17 +322,17 @@ function computeYield(body, ctx) {
       totalAssetsInr,
       principalInr,
       tenureMonths: tenure_months,
-      basePenaltyPct: parseFloat(policyStore.almPenaltyPct || '0.25')
+      basePenaltyPct: new Decimal(policyStore.almPenaltyPct || '0.25')
     });
     if (almPenaltyPct > 0) {
       almPenaltyApplied = true;
-      almPenaltyAmount = principalInr * (almPenaltyPct / 100);
+      almPenaltyAmount = principalInr.times(almPenaltyPct).div(100).toNumber();
     }
   }
 
   // FIXED: ALM penalty applied ONLY to FCNR (foreign currency deposit).
   // NRE is INR-denominated — the bank has no FX mismatch risk on NRE deposits.
-  const fcnrEffectiveYieldPct = fcnrNominalPct - almPenaltyPct;
+  const fcnrEffectiveYieldPct = new Decimal(fcnrNominalPct).minus(almPenaltyPct).toNumber();
   // nreEffectiveYieldPct remains unchanged — NO ALM deduction on NRE.
 
   let calculationMethod = 'NOMINAL';
@@ -331,8 +341,8 @@ function computeYield(body, ctx) {
 
   if (india_inflation_rate !== undefined && foreign_inflation_rate !== undefined) {
     calculationMethod = 'REAL_PPP_ADJUSTED';
-    fcnrRealYieldPct = calculateRealYield(fcnrEffectiveYieldPct, parseFloat(foreign_inflation_rate));
-    nreRealYieldPct = calculateRealYield(nreEffectiveYieldPct, parseFloat(india_inflation_rate));
+    fcnrRealYieldPct = calculateRealYield(fcnrEffectiveYieldPct, foreign_inflation_rate);
+    nreRealYieldPct = calculateRealYield(nreEffectiveYieldPct, india_inflation_rate);
     fcnrFinal = fcnrRealYieldPct;
     nreFinal = nreRealYieldPct;
   }
@@ -341,7 +351,7 @@ function computeYield(body, ctx) {
   if (base_currency === 'INR') {
     recommendedProduct = 'NRE';
   } else {
-    const diff = fcnrFinal - nreFinal;
+    const diff = new Decimal(fcnrFinal).minus(nreFinal).toNumber();
     if (diff > config.business.decisionThresholdPct) recommendedProduct = 'FCNR';
     else if (diff < -config.business.decisionThresholdPct) recommendedProduct = 'NRE';
   }
@@ -349,26 +359,26 @@ function computeYield(body, ctx) {
   const fxRiskFlag = recommendedProduct === 'FCNR' && risk_profile === 'CONSERVATIVE';
   const fcnrProjectedBaseAmount = base_currency === 'INR'
     ? null
-    : principal * calculateMaturityMultiplier(fcnrEffectiveYieldPct, tenure_months);
+    : principal.times(calculateMaturityMultiplier(fcnrEffectiveYieldPct, tenure_months)).toNumber();
   const nreProjectedInrAmount = base_currency === 'INR'
-    ? principal * calculateMaturityMultiplier(nreNominalPct, tenure_months)
-    : principal * productSpotRate * calculateMaturityMultiplier(nreNominalPct, tenure_months);
+    ? principal.times(calculateMaturityMultiplier(nreNominalPct, tenure_months)).toNumber()
+    : principal.times(productSpotRate).times(calculateMaturityMultiplier(nreNominalPct, tenure_months)).toNumber();
   const nreProjectedBaseAmount = base_currency === 'INR'
     ? nreProjectedInrAmount
-    : nreProjectedInrAmount / productForwardRate;
+    : new Decimal(nreProjectedInrAmount).div(productForwardRate).toNumber();
   const fcnrProjectedInrAmount = base_currency === 'INR'
     ? null
-    : fcnrProjectedBaseAmount * productForwardRate;
+    : new Decimal(fcnrProjectedBaseAmount).times(productForwardRate).toNumber();
   const projectionProduct = recommendedProduct === 'EQUAL_YIELD' ? 'NRE' : recommendedProduct;
   const recommendedProjectedBaseAmount = projectionProduct === 'FCNR' ? fcnrProjectedBaseAmount : nreProjectedBaseAmount;
   const alternativeProduct = base_currency === 'INR'
     ? 'NO_ACTION'
     : (projectionProduct === 'FCNR' ? 'NRE' : 'FCNR');
   const alternativeProjectedBaseAmount = alternativeProduct === 'NO_ACTION'
-    ? principal
+    ? principal.toNumber()
     : (alternativeProduct === 'FCNR' ? fcnrProjectedBaseAmount : nreProjectedBaseAmount);
   const projectionDifferenceBase = recommendedProjectedBaseAmount !== null && alternativeProjectedBaseAmount !== null
-    ? recommendedProjectedBaseAmount - alternativeProjectedBaseAmount
+    ? new Decimal(recommendedProjectedBaseAmount).minus(alternativeProjectedBaseAmount).toNumber()
     : 0;
 
   const complianceWarnings = [];

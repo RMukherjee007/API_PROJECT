@@ -97,7 +97,14 @@ app.get('/portfolio/:customer_id', authenticateRequest, async (req, res) => {
 
 app.get('/health/live', (req, res) => res.status(200).json({ status: 'ok', service: 'esb' }));
 app.get('/health/startup', (req, res) => res.status(200).json({ status: 'started', service: 'esb' }));
-app.get('/health/ready', (req, res) => res.status(200).json({ status: 'ready', service: 'esb', uptime_seconds: process.uptime(), version: require('../../package.json').version }));
+app.get('/health/ready', async (req, res) => {
+  try {
+    await redis.ping();
+    res.status(200).json({ status: 'ready', service: 'esb', uptime_seconds: process.uptime(), version: require('../../package.json').version, checks: { redis: 'ok' } });
+  } catch (err) {
+    res.status(503).json({ status: 'degraded', service: 'esb', checks: { redis: 'unreachable' } });
+  }
+});
 
 app.get('/metrics', metricsHandler);
 
@@ -106,5 +113,11 @@ app.use(errorHandler);
 const PORT = config.port.esb;
 app.listen(PORT, () => log.info('esb_listening', { port: PORT }));
 
-process.on('SIGTERM', async () => { await redis.quit(); process.exit(0); });
-process.on('SIGINT', async () => { await redis.quit(); process.exit(0); });
+function shutdown(signal) {
+  log.info('esb_shutdown_begin', { signal });
+  // The quit() command returns a promise. We add a catch to prevent unhandled rejections
+  // if Redis is already unavailable during shutdown.
+  redis.quit().catch(() => { }).then(() => process.exit(0));
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
