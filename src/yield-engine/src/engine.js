@@ -8,7 +8,7 @@
  * Phase 5: Decision matrix (FCNR / NRE / EQUAL_YIELD) with configurable threshold.
  */
 
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 const { formatCurrency } = require('../../shared/utils/helpers');
 const config = require('../../shared/config');
 const { AlmPolicyEngine } = require('./almPolicyEngine');
@@ -139,7 +139,10 @@ function validateOptimizeRequest(body, traceparent, rateFeed) {
         const usdInr = parseFloat(feed.spot['USD/INR']);
         const ccyInr = parseFloat(feed.spot[`${body.base_currency}/INR`] || feed.spot[`USD/${body.base_currency}`]);
         if (usdInr && ccyInr) principalUsd = (principal * ccyInr) / usdInr;
+        else principalUsd = NaN; // Force failure if rates are missing
       }
+      // Explicitly check for NaN to prevent bypass on feed error
+      if (isNaN(principalUsd)) throw new Error('Could not convert principal to USD due to missing FX rates.');
       if (principalUsd < config.business.minPrincipalUsd) {
         return {
           status: 422,
@@ -148,7 +151,14 @@ function validateOptimizeRequest(body, traceparent, rateFeed) {
           invalidFields: { principal_amount: `must be >= USD ${config.business.minPrincipalUsd} equivalent` },
         };
       }
-    } catch { /* if rate not loaded, skip check */ }
+    } catch (err) {
+      // FAIL-CLOSED: If we cannot verify the principal amount due to a feed error, reject the request.
+      return {
+        status: 503,
+        errorCode: 'RATE_FEED_UNAVAILABLE',
+        detail: 'Market rate feed is down, cannot verify principal minimums. Please try again later.',
+      };
+    }
   }
 
   const feed = rateFeed.getFeed();
@@ -269,13 +279,16 @@ function computeYield(body, ctx) {
   for (const liab of liabilities) {
     const val = parseFloat(liab.outstanding_principal);
     const weight = LIABILITY_WEIGHTS[liab.liability_type] || 1.0;
-    if (liab.currency === 'INR') { totalLiabilitiesInr += val; weightedBankAssetsInr += val * weight; continue; }
-    const pair = `${liab.currency}/INR`;
-    let rate = parseFloat(feed.spot[pair]);
-    if (fx_rate_overrides?.portfolio_cross_rates?.[pair]) rate = parseFloat(fx_rate_overrides.portfolio_cross_rates[pair]);
-    if (isNaN(rate)) throw new Error(`Missing market rate for currency pair: ${pair}`);
-    portfolioFxMatrix[pair] = rate.toFixed(6);
-    const valInr = val * rate;
+    let valInr = val;
+    if (liab.currency !== 'INR') {
+      const pair = `${liab.currency}/INR`;
+      let rate = parseFloat(feed.spot[pair]);
+      if (fx_rate_overrides?.portfolio_cross_rates?.[pair]) rate = parseFloat(fx_rate_overrides.portfolio_cross_rates[pair]);
+      if (isNaN(rate)) throw new Error(`Missing market rate for currency pair: ${pair}`);
+      portfolioFxMatrix[pair] = rate.toFixed(6);
+      valInr = val * rate;
+    }
+    liab.outstanding_principal_inr = valInr; // CRITICAL FIX: Add the required field for ALM engine.
     totalLiabilitiesInr += valInr;
     weightedBankAssetsInr += valInr * weight;
   }
@@ -424,7 +437,7 @@ function computeYield(body, ctx) {
       }),
     },
     metadata: {
-      recommendation_id: uuidv4(),
+      recommendation_id: randomUUID(),
       traceparent,
       customer_id,
       value_date,

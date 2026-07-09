@@ -1,7 +1,9 @@
 FROM node:20-alpine
 WORKDIR /app
-COPY package*.json ./
+RUN chown -R node:node /app
+USER node
+COPY --chown=node:node package*.json ./
 RUN npm install --omit=dev
-COPY . .
+COPY --chown=node:node . .
 EXPOSE 8085
 CMD ["node", "src/bank-integration-service/src/index.js"]

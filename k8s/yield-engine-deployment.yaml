@@ -15,6 +15,11 @@ spec:
       - name: yield-engine
         image: nri-yield/yield-engine:latest
         imagePullPolicy: IfNotPresent
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
         ports:
         - containerPort: 8082
         envFrom:

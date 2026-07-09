@@ -23,37 +23,39 @@ const correlationFormat = winston.format((info) => {
   return info;
 })();
 
+function sanitizeLogObject(obj) {
+  if (typeof obj !== 'object' || obj === null) return obj;
+  for (const key in obj) {
+    if (typeof obj[key] === 'string') {
+      obj[key] = obj[key].replace(/[\r\n]/g, ' ');
+    } else if (typeof obj[key] === 'object') {
+      sanitizeLogObject(obj[key]);
+    }
+  }
+  return obj;
+}
+
 const baseFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DDTHH:mm:ss.SSSZ' }),
   correlationFormat,
   winston.format.errors({ stack: true }),
-  winston.format.printf((info) => {
-    const { timestamp, level, service, correlationId, message, ...meta } = info;
-    const metaStr = Object.keys(meta).length ? ' ' + JSON.stringify(meta) : '';
-    return JSON.stringify({
-      timestamp,
-      level,
-      service,
-      correlationId,
-      message,
-      ...meta,
-    });
-  })
+  winston.format.json({ replacer: (key, value) => typeof value === 'string' ? value.replace(/[\r\n]/g, ' ') : value })
 );
 
 const consoleFormat = config.env === 'production'
   ? baseFormat
   : winston.format.combine(
-      winston.format.timestamp({ format: 'HH:mm:ss.SSS' }),
-      correlationFormat,
-      winston.format.errors({ stack: true }),
-      winston.format.colorize({ all: true }),
-      winston.format.printf((info) => {
-        const { timestamp, level, service, correlationId, message, ...meta } = info;
-        const metaStr = Object.keys(meta).length ? ' ' + JSON.stringify(meta) : '';
-        return `${timestamp} [${level}] (${service} cid=${correlationId}) ${message}${metaStr}`;
-      })
-    );
+    winston.format.timestamp({ format: 'HH:mm:ss.SSS' }),
+    correlationFormat,
+    winston.format.errors({ stack: true }),
+    winston.format.colorize({ all: true }),
+    winston.format.printf((info) => {
+      const { timestamp, level, service, correlationId, message, ...meta } = info;
+      const sanitizedMeta = sanitizeLogObject(meta);
+      const metaStr = Object.keys(sanitizedMeta).length ? ' ' + JSON.stringify(sanitizedMeta) : '';
+      return `${timestamp} [${level}] (${service} cid=${correlationId}) ${message}${metaStr}`;
+    })
+  );
 
 const transports = [
   new winston.transports.Console({ format: consoleFormat }),

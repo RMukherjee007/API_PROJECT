@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: esb
+  name: auth
   namespace: nri-yield
 spec:
   replicas: 1
   selector:
-    matchLabels: { app: esb }
+    matchLabels: { app: auth }
   template:
     metadata:
-      labels: { app: esb }
+      labels: { app: auth }
     spec:
       containers:
-      - name: esb
-        image: nri-yield/esb:latest
+      - name: auth
+        image: nri-yield/auth:latest
         imagePullPolicy: IfNotPresent
         securityContext:
           runAsNonRoot: true
@@ -21,15 +21,26 @@ spec:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
         ports:
-        - containerPort: 8081
+        - containerPort: 8083
         envFrom:
         - configMapRef: { name: nri-config }
+        env:
+        - name: HMAC_SHARED_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: nri-secrets
+              key: HMAC_SHARED_SECRET
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: nri-secrets
+              key: JWT_SECRET
         livenessProbe:
-          httpGet: { path: /health/live, port: 8081 }
+          httpGet: { path: /health/live, port: 8083 }
           initialDelaySeconds: 10
           periodSeconds: 15
         readinessProbe:
-          httpGet: { path: /health/ready, port: 8081 }
+          httpGet: { path: /health/ready, port: 8083 }
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
@@ -39,12 +50,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: esb
+  name: auth
   namespace: nri-yield
 spec:
-  selector: { app: esb }
+  selector: { app: auth }
   ports:
-  - port: 8081
-    targetPort: 8081
+  - port: 8083
+    targetPort: 8083
     name: http
   type: ClusterIP

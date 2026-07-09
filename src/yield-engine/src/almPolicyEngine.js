@@ -33,11 +33,11 @@ class AlmPolicyEngine {
     let highRiskDebtInr = 0;
     for (const liab of liabilities) {
       if (HIGH_RISK_LOAN_TYPES.includes(liab.liability_type)) {
-        // We use outstanding_principal but since we need it in INR, we approximate 
-        // its share of the totalLiabilitiesInr (or assume it's already converted if we pass it,
-        // but here we just check if any high risk debt exists to scale).
-        // For simplicity, we just flag the presence and relative size of high risk debt.
-        highRiskDebtInr += (parseFloat(liab.outstanding_principal) || 0); // Note: This ignores FX on the liab itself if it's foreign, but typically retail high-risk debt is domestic.
+        // CRITICAL: This calculation assumes that totalLiabilitiesInr was calculated
+        // by converting all liabilities to INR. We must ensure the `liabilities` array
+        // passed in has INR-equivalent values if we are to sum them.
+        // Assuming `liab.outstanding_principal_inr` is now available after pre-conversion.
+        highRiskDebtInr += (liab.outstanding_principal_inr || 0);
       }
     }
 
@@ -58,12 +58,9 @@ class AlmPolicyEngine {
     }
 
     // 3. Tenure Dynamics
-    // If the customer has high debt but is locking in money for a short time (< 12 months), 
-    // the bank faces a short-term liquidity mismatch, increasing the penalty.
-    // If they lock it in for a long time (> 36 months), it stabilizes the bank's ALM, reducing the penalty.
-    if (tenureMonths < 12) {
-      riskMultiplier *= 1.2;
-    } else if (tenureMonths >= 36) {
+    // If the customer locks money in for a long time (> 36 months), it stabilizes the bank's ALM, reducing the penalty.
+    // The < 12 month check is removed as it's unreachable; validation layer enforces a 12-month minimum.
+    if (tenureMonths >= 36) {
       riskMultiplier *= 0.8;
     }
 

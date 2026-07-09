@@ -83,7 +83,14 @@ app.post('/api/v1/audit/events', async (req, res) => {
 
 app.get('/api/v1/audit/logs', async (req, res) => {
   try {
-    const { page = 1, limit = 50, customer_id, product, from_date, to_date, employee_id, role } = req.query;
+    let { page = 1, limit = 50, customer_id, product, from_date, to_date, employee_id, role } = req.query;
+
+    const callerEmployeeId = req.headers['x-employee-id'];
+    const callerUserRole = req.headers['x-user-role'];
+    if (callerUserRole !== 'ADMIN' && callerUserRole !== 'AUDITOR') {
+      employee_id = callerEmployeeId;
+    }
+
     const data = await store.query({ page: parseInt(page, 10), limit: parseInt(limit, 10), customer_id, product, from_date, to_date, employee_id, role });
     res.status(200).json({ ...data, source: 'audit-service' });
   } catch (err) {
@@ -94,8 +101,17 @@ app.get('/api/v1/audit/logs', async (req, res) => {
 
 app.get('/api/v1/audit/logs/pdf', async (req, res) => {
   try {
-    const { page = 1, limit = 50, customer_id, product, from_date, to_date, employee_id, role } = req.query;
-    const data = await store.query({ page: parseInt(page, 10), limit: Math.min(200, parseInt(limit, 10)), customer_id, product, from_date, to_date, employee_id, role });
+    let { page = 1, limit = 50, customer_id, product, from_date, to_date, employee_id, role } = req.query;
+
+    const callerEmployeeId = req.headers['x-employee-id'];
+    const callerUserRole = req.headers['x-user-role'];
+    if (callerUserRole !== 'ADMIN' && callerUserRole !== 'AUDITOR') {
+      employee_id = callerEmployeeId;
+    }
+
+    // Harden against resource exhaustion by lowering the max limit for this expensive operation.
+    const safeLimit = Math.min(50, parseInt(limit, 10));
+    const data = await store.query({ page: parseInt(page, 10), limit: safeLimit, customer_id, product, from_date, to_date, employee_id, role });
 
     const pdfBuffer = await generateBulkPdfReport(data.logs);
     res.setHeader('Content-Type', 'application/pdf');
@@ -201,7 +217,6 @@ app.get('/health/ready', async (req, res) => {
       service: 'audit-service',
       uptime_seconds: process.uptime(),
       storage: { driver: config.storage.driver, ready: store.ready },
-      counts: stats,
     });
   } catch (err) {
     res.status(503).json({ status: 'degraded', error: 'Storage engine unavailable' });

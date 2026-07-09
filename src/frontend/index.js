@@ -14,6 +14,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const http = require('http');
 const path = require('path');
+const cookieParser = require('cookie-parser');
 const { randomUUID } = require('crypto');
 const jwt = require('jsonwebtoken');
 
@@ -42,6 +43,7 @@ app.use(helmet({
 }));
 app.use(compression());
 app.use(correlationMiddleware);
+app.use(cookieParser());
 app.use('/api', express.json({ limit: '1mb' }));
 
 function gatewayUrlFor(req) {
@@ -50,10 +52,10 @@ function gatewayUrlFor(req) {
 }
 
 function resolveUserContext(req) {
-  const auth = req.headers.authorization || '';
-  if (auth.startsWith('Bearer ')) {
-    const token = auth.slice('Bearer '.length).trim();
-    try {
+  // Read the JWT from the HttpOnly cookie sent by the browser.
+  const token = req.cookies?.access_token;
+  if (token) {
+    try { // Verify the token to securely extract user context for signing.
       const decoded = jwt.verify(token, config.security.jwtSecret, {
         algorithms: ['HS256'],
         issuer: config.security.jwtIssuer,
@@ -64,8 +66,8 @@ function resolveUserContext(req) {
         userRole: decoded.role || 'RM',
       };
     } catch (err) {
-      if (config.isProd) throw err;
-      log.warn('frontend_jwt_context_failed_dev_fallback', { error: err.message });
+      // If token verification fails for any reason, re-throw the error to force a 401.
+      throw err;
     }
   }
   if (config.isProd) {
@@ -99,8 +101,8 @@ app.use('/api', async (req, res) => {
     extraHeaders: {
       'content-type': 'application/json',
       'x-correlation-id': req.correlationId,
-      traceparent: req.traceparent,
-      ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
+      traceparent: req.traceparent, // Forward the cookie header to allow downstream services to validate the session.
+      ...(req.headers.cookie ? { cookie: req.headers.cookie } : {}),
       ...(method === 'POST' && targetPath === '/optimize' ? { 'Idempotency-Key': req.headers['idempotency-key'] || randomUUID() } : {}),
     },
   });

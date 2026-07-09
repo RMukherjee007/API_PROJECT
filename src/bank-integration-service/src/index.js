@@ -5,8 +5,7 @@
  * customer asset/liability view needed by the recommendation engine.
  *
  * Runtime modes:
- *   - dev/sandbox: fetches mock CBS data through the ESB translation layer.
- *   - live: fetches normalized portfolio data from CBS_ADAPTER_URL.
+ *   - always proxies to ESB translation layer for caching and CBS fetch.
  */
 
 process.env.SERVICE_NAME = process.env.SERVICE_NAME || 'bank-integration';
@@ -26,7 +25,7 @@ const { authenticateRequest } = require('../../shared/middleware/auth');
 const { metricsMiddleware, metricsHandler } = require('../../shared/metrics');
 
 const log = withCorrelation('-');
-log.info('bank_integration_boot', { port: config.port.bank, live: config.bank.liveMode });
+log.info('bank_integration_boot', { port: config.port.bank });
 
 const app = express();
 app.disable('x-powered-by');
@@ -53,39 +52,21 @@ function normalizePortfolio(payload = {}) {
       currency: String(asset.currency || '').toUpperCase(),
       asset_type: asset.asset_type || asset.assetType || 'OTHER',
       market_value: Number(asset.market_value ?? asset.marketValue ?? asset.value ?? 0).toFixed(2),
-      source: asset.source || (config.bank.liveMode ? 'CBS' : 'ESB_MOCK'),
+      source: asset.source || 'CBS',
       valuation_date: asset.valuation_date || asset.valuationDate || new Date().toISOString().slice(0, 10),
     })),
     liabilities: liabilities.map((liability) => ({
       currency: String(liability.currency || '').toUpperCase(),
       liability_type: liability.liability_type || liability.liabilityType || 'OTHER',
       outstanding_principal: Number(liability.outstanding_principal ?? liability.outstandingPrincipal ?? liability.value ?? 0).toFixed(2),
-      source: liability.source || (config.bank.liveMode ? 'CBS' : 'ESB_MOCK'),
+      source: liability.source || 'CBS',
       valuation_date: liability.valuation_date || liability.valuationDate || new Date().toISOString().slice(0, 10),
     })),
     retrieved_at: new Date().toISOString(),
-    mode: config.bank.liveMode ? 'live' : 'mock',
+    mode: 'esb-proxy',
   };
 }
 
-async function fetchLivePortfolio(customerId) {
-  const url = `${config.bank.cbsAdapterUrl.replace(/\/$/, '')}/portfolio/${encodeURIComponent(customerId)}`;
-  const response = await safeFetch(url, {}, { timeoutMs: 5000, retries: 1 });
-  let payload;
-  try {
-    payload = await response.json();
-  } catch (err) {
-    return { error: 'CBS JSON Parse Error', detail: 'Invalid JSON response from CBS' };
-  }
-  if (!response.ok) {
-    // Mask potential raw stack traces or internal network info from third-party APIs
-    return { 
-      error: `CBS adapter returned HTTP ${response.status}`, 
-      detail: 'Upstream CBS adapter responded with an error.' 
-    };
-  }
-  return normalizePortfolio({ ...payload, customer_id: payload.customer_id || customerId });
-}
 
 async function fetchEsbPortfolio(customerId) {
   const url = `${config.services.esbUrl}/portfolio/${encodeURIComponent(customerId)}`;
@@ -116,7 +97,6 @@ async function fetchEsbPortfolio(customerId) {
 }
 
 async function cbsFetchPortfolio(customerId) {
-  if (config.bank.liveMode) return fetchLivePortfolio(customerId);
   return fetchEsbPortfolio(customerId);
 }
 
@@ -133,9 +113,9 @@ app.get('/api/v1/bank/cbs/portfolio/:customerId', async (req, res) => {
 app.get('/api/v1/bank/info', (req, res) => {
   res.status(200).json({
     service: 'bank-integration',
-    mode: config.bank.liveMode ? 'live' : 'mock',
+    mode: 'esb-proxy',
     capabilities: ['cbs_fetch_portfolio'],
-    cbs_adapter: config.bank.cbsAdapterUrl || '(esb-mock)',
+    cbs_adapter: config.bank.cbsAdapterUrl || '(esb-proxy)',
     version: require('../../../package.json').version,
   });
 });
@@ -143,10 +123,10 @@ app.get('/api/v1/bank/info', (req, res) => {
 app.get('/health/live', (req, res) => res.status(200).json({ status: 'ok', service: 'bank-integration' }));
 app.get('/health/startup', (req, res) => res.status(200).json({ status: 'started', service: 'bank-integration' }));
 app.get('/health/ready', (req, res) => res.status(200).json({
-  status: config.bank.liveMode && !config.bank.cbsAdapterUrl ? 'degraded' : 'ready',
+  status: 'ready',
   service: 'bank-integration',
   uptime_seconds: process.uptime(),
-  mode: config.bank.liveMode ? 'live' : 'mock',
+  mode: 'esb-proxy',
   version: require('../../../package.json').version,
 }));
 

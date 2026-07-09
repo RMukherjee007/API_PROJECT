@@ -2,18 +2,19 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: default-deny-all
-  namespace: nri-advisory
+  namespace: nri-yield
 spec:
   podSelector: {}
   policyTypes:
   - Ingress
   - Egress
 ---
+# INGRESS: Allow traffic from the NGINX ingress controller to the gateway
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ingress-gateway
-  namespace: nri-advisory
+  name: allow-ingress-to-gateway
+  namespace: nri-yield
 spec:
   podSelector:
     matchLabels:
@@ -24,13 +25,34 @@ spec:
   - from:
     - namespaceSelector:
         matchLabels:
+          # This label should match your ingress controller's namespace
           name: ingress-nginx
 ---
+# INGRESS: Allow traffic from other pods in the namespace (e.g., gateway, other services)
+# to the backend services. This is a broad policy for simplicity.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-gateway-to-internal
-  namespace: nri-advisory
+  name: allow-ingress-to-backends
+  namespace: nri-yield
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values: ["auth-service", "yield-engine", "bank-integration", "esb", "audit-service", "redis", "mysql"]
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector: {} # Allows all pods in the namespace
+---
+# EGRESS: Allow gateway to talk to backends and Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-outbound
+  namespace: nri-yield
 spec:
   podSelector:
     matchLabels:
@@ -44,41 +66,82 @@ spec:
         - key: app
           operator: In
           values: ["auth-service", "yield-engine", "bank-integration", "esb", "audit-service"]
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
 ---
+# EGRESS: Allow key services to talk to the database
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-internal-ingress-from-gateway
-  namespace: nri-advisory
+  name: allow-outbound-to-db
+  namespace: nri-yield
 spec:
   podSelector:
     matchExpressions:
     - key: app
       operator: In
-      values: ["auth-service", "yield-engine", "bank-integration", "esb", "audit-service"]
+      values: ["yield-engine", "audit-service", "auth-service"]
   policyTypes:
-  - Ingress
-  ingress:
-  - from:
+  - Egress
+  egress:
+  - to:
     - podSelector:
         matchLabels:
-          app: gateway
+          app: mysql
+    ports:
+    - protocol: TCP
+      port: 3306
 ---
+# EGRESS: Allow Yield Engine to access external services (e.g., FX data feed) and DNS
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-internal-to-redis
-  namespace: nri-advisory
+  name: allow-yield-engine-outbound-external
+  namespace: nri-yield
 spec:
   podSelector:
     matchLabels:
-      app: redis
+      app: yield-engine
   policyTypes:
-  - Ingress
-  ingress:
-  - from:
-    - podSelector:
-        matchExpressions:
-        - key: app
-          operator: In
-          values: ["gateway", "yield-engine", "bank-integration", "esb"]
+  - Egress
+  egress:
+  # Allow DNS lookups to pods in all namespaces (e.g. kube-dns)
+  - ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow traffic to the internet on HTTPS, excluding private IP ranges
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
+---
+# EGRESS: Allow internal service-to-service communication for other backend pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internal-service-egress
+  namespace: nri-yield
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values: ["esb", "bank-integration", "yield-engine", "auth-service", "audit-service"]
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - podSelector: {} # Allows egress to all pods within the namespace

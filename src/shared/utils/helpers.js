@@ -98,6 +98,9 @@ async function safeFetch(url, options = {}, { timeoutMs = 5000, retries = 2, bac
   const attempt = async (n) => {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), timeoutMs);
+    
+
+
     try {
       const res = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(t);

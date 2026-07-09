@@ -46,7 +46,7 @@ describe('Yield Engine - computeYield', () => {
         tenure_months: 12,
         principal_amount: '10000',
       }, mockCtx);
-    }).toThrow('Missing market rate for currency pair: JPY/INR');
+    }).toThrow('Insufficient forward rate granularity');
   });
 
   it('should correctly calculate Nominal FCNR and NRE yields without inflation', () => {

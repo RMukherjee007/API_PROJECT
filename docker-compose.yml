@@ -2,59 +2,62 @@ services:
   mysql:
     image: mysql:8
     container_name: nri-mysql
-    ports: ["3306:3306"]
+    ports: [ "3306:3306" ]
+    # Create a dedicated app user instead of using root.
     environment:
       - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_USER=app_user
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?set MYSQL_PASSWORD in local .env or secret manager}
       - MYSQL_DATABASE=csb_bank
-    healthcheck: { test: ["CMD", "mysqladmin", "ping", "-h", "localhost"], interval: 10s, timeout: 5s, retries: 5 }
+    healthcheck: { test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ], interval: 10s, timeout: 5s, retries: 5 }
 
   redis:
     image: redis:7-alpine
     container_name: nri-redis
-    ports: ["6379:6379"]
-    healthcheck: { test: ["CMD","redis-cli","ping"], interval: 10s, timeout: 3s, retries: 5 }
+    ports: [ "6379:6379" ]
+    healthcheck: { test: [ "CMD", "redis-cli", "ping" ], interval: 10s, timeout: 3s, retries: 5 }
 
   esb:
     build:
       context: .
       dockerfile: src/esb/Dockerfile
     container_name: nri-esb
-    ports: ["8081:8081"]
+    ports: [ "8081:8081" ]
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - ESB_PORT=8081
       - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
       - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
-    healthcheck: { test: ["CMD","wget","--spider","http://localhost:8081/health/live"], interval: 15s, timeout: 5s, retries: 3 }
+    healthcheck: { test: [ "CMD", "wget", "--spider", "http://localhost:8081/health/live" ], interval: 15s, timeout: 5s, retries: 3 }
 
   auth:
     build:
       context: .
       dockerfile: src/auth-service/Dockerfile
     container_name: nri-auth
-    ports: ["8083:8083"]
+    ports: [ "8083:8083" ]
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - AUTH_PORT=8083
       - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
       - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
       - CORS_ORIGINS=http://localhost:3000
-    healthcheck: { test: ["CMD","wget","--spider","http://localhost:8083/health/live"], interval: 15s, timeout: 5s, retries: 3 }
+    healthcheck: { test: [ "CMD", "wget", "--spider", "http://localhost:8083/health/live" ], interval: 15s, timeout: 5s, retries: 3 }
 
   audit:
     build:
       context: .
       dockerfile: src/audit-service/Dockerfile
     container_name: nri-audit
-    ports: ["8084:8084"]
+    ports: [ "8084:8084" ]
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - AUDIT_PORT=8084
       - STORAGE_DRIVER=mysql
       - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_USER=root
-      - MYSQL_PASSWORD=root
+      - MYSQL_PORT=3306 # Use the dedicated app user credentials
+      - MYSQL_USER=app_user
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?set MYSQL_PASSWORD in local .env or secret manager}
       - MYSQL_DATABASE=csb_bank
       - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
       - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
@@ -62,14 +65,14 @@ services:
       - CORS_ORIGINS=http://localhost:3000
     depends_on:
       mysql: { condition: service_healthy }
-    healthcheck: { test: ["CMD","wget","--spider","http://localhost:8084/health/live"], interval: 15s, timeout: 5s, retries: 3 }
+    healthcheck: { test: [ "CMD", "wget", "--spider", "http://localhost:8084/health/live" ], interval: 15s, timeout: 5s, retries: 3 }
 
   yield-engine:
     build:
       context: .
       dockerfile: src/yield-engine/Dockerfile
     container_name: nri-yield-engine
-    ports: ["8082:8082"]
+    ports: [ "8082:8082" ]
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - YIELD_ENGINE_PORT=8082
@@ -82,14 +85,14 @@ services:
       - TMS_MARKET_DATA_URL=${TMS_MARKET_DATA_URL:-}
     depends_on:
       audit: { condition: service_started }
-    healthcheck: { test: ["CMD","wget","--spider","http://localhost:8082/health/live"], interval: 15s, timeout: 5s, retries: 3 }
+    healthcheck: { test: [ "CMD", "wget", "--spider", "http://localhost:8082/health/live" ], interval: 15s, timeout: 5s, retries: 3 }
 
   bank:
     build:
       context: .
       dockerfile: src/bank-integration-service/Dockerfile
     container_name: nri-bank
-    ports: ["8085:8085"]
+    ports: [ "8085:8085" ]
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - BANK_PORT=8085
@@ -101,14 +104,14 @@ services:
       - CORS_ORIGINS=http://localhost:3000
     depends_on:
       esb: { condition: service_started }
-    healthcheck: { test: ["CMD","wget","--spider","http://localhost:8085/health/live"], interval: 15s, timeout: 5s, retries: 3 }
+    healthcheck: { test: [ "CMD", "wget", "--spider", "http://localhost:8085/health/live" ], interval: 15s, timeout: 5s, retries: 3 }
 
   gateway:
     build:
       context: .
       dockerfile: src/gateway/Dockerfile
     container_name: nri-gateway
-    ports: ["8080:8080"]
+    ports: [ "8080:8080" ]
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - GATEWAY_PORT=8080
@@ -129,18 +132,18 @@ services:
       audit: { condition: service_started }
       bank: { condition: service_started }
       esb: { condition: service_started }
-    healthcheck: { test: ["CMD","wget","--spider","http://localhost:8080/health/live"], interval: 15s, timeout: 5s, retries: 3 }
+    healthcheck: { test: [ "CMD", "wget", "--spider", "http://localhost:8080/health/live" ], interval: 15s, timeout: 5s, retries: 3 }
 
   frontend:
     build:
       context: .
       dockerfile: src/frontend/Dockerfile
     container_name: nri-frontend
-    ports: ["3000:3000"]
+    ports: [ "3000:3000" ]
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - FRONTEND_PORT=3000
       - PUBLIC_API_BASE=http://gateway:8080
       - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
       - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
-    depends_on: [gateway]
+    depends_on: [ gateway ]

@@ -1,6 +1,6 @@
-const currencies = ['USD','GBP','EUR','CAD','AUD','SGD','JPY','CHF','HKD','AED','SAR','QAR','OMR','BHD','KWD','INR'];
-const assetTypes = ['FIXED_DEPOSIT','NRE_ACCOUNT','FCNR_ACCOUNT','SAVINGS_ACCOUNT','MUTUAL_FUND','EQUITY','OTHER'];
-const liabilityTypes = ['HOME_LOAN','LOAN_AGAINST_PROPERTY','CAR_LOAN','PERSONAL_LOAN','CREDIT_CARD_OUTSTANDING','OTHER'];
+const currencies = ['USD', 'GBP', 'EUR', 'CAD', 'AUD', 'SGD', 'JPY', 'CHF', 'HKD', 'AED', 'SAR', 'QAR', 'OMR', 'BHD', 'KWD', 'INR'];
+const assetTypes = ['FIXED_DEPOSIT', 'NRE_ACCOUNT', 'FCNR_ACCOUNT', 'SAVINGS_ACCOUNT', 'MUTUAL_FUND', 'EQUITY', 'OTHER'];
+const liabilityTypes = ['HOME_LOAN', 'LOAN_AGAINST_PROPERTY', 'CAR_LOAN', 'PERSONAL_LOAN', 'CREDIT_CARD_OUTSTANDING', 'OTHER'];
 let lastRecommendationId = null;
 
 let ratesAbortController = null;
@@ -9,7 +9,7 @@ let optimizeAbortController = null;
 
 function getLocalDateString() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function escapeHtml(value) {
@@ -24,7 +24,7 @@ function escapeHtml(value) {
 
 function money(value, currency) {
   const n = Number(value || 0);
-  return `${currency || ''} ${n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`.trim();
+  return `${currency || ''} ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
 }
 
 function fillSelect(id, values) {
@@ -50,47 +50,47 @@ function collectPositions(selector, isAsset) {
 }
 
 function apiHeaders() {
-  const token = sessionStorage.getItem('access_token');
-  const headers = {
+  // With HttpOnly cookies, the browser handles authentication automatically.
+  // We no longer need to manually add Authorization headers.
+  return {
     'Content-Type': 'application/json',
     'Idempotency-Key': (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : String(Date.now())
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  return headers;
 }
 
 function decodeJwt(token) {
   try {
     return JSON.parse(atob(token.split('.')[1]));
-  } catch(e) {
+  } catch (e) {
     return {};
   }
 }
 
-function updateAuthState() {
-  const token = sessionStorage.getItem('access_token');
-  if (token) {
-    const payload = decodeJwt(token);
-    const role = payload.role || 'RM';
+async function updateAuthState() {
+  try {
+    // Check for a valid session by calling the /me endpoint.
+    // The browser will automatically send the HttpOnly cookie.
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) throw new Error('Not authenticated');
+    const user = await res.json();
 
+    // User is logged in
     document.getElementById('view-login').classList.add('hidden');
     document.getElementById('sidebar').classList.remove('hidden');
     document.getElementById('topNav').classList.remove('hidden');
     document.getElementById('view-advice').classList.remove('hidden');
 
     const ratesBtn = document.querySelector('button[data-view="rates"]');
-    if (ratesBtn) {
-      if (role === 'RM') {
-        ratesBtn.classList.add('hidden');
-      } else {
+    if (ratesBtn) { // Hide rates view for RM role
+      if (user.role === 'RM') { ratesBtn.classList.add('hidden'); } else {
         ratesBtn.classList.remove('hidden');
       }
     }
 
-    loadRates().catch(() => {});
-  } else {
+    loadRates().catch(() => { });
+  } catch (err) {
     document.getElementById('view-login').classList.remove('hidden');
-    document.getElementById('sidebar').classList.add('hidden');
+    document.getElementById('sidebar').classList.add('hidden'); // User is not logged in
     document.getElementById('topNav').classList.add('hidden');
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     document.getElementById('view-login').classList.remove('hidden');
@@ -117,7 +117,7 @@ async function loadHistory() {
   if (historyAbortController) historyAbortController.abort();
   historyAbortController = new AbortController();
   try {
-    const res = await fetch('/api/history?limit=50', { headers: apiHeaders(), signal: historyAbortController.signal });
+    const res = await fetch('/api/recent-suggestions?limit=50', { headers: apiHeaders(), signal: historyAbortController.signal });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || data.title || 'Failed to load history');
     const items = data.logs || data.items || [];
@@ -131,9 +131,9 @@ async function loadHistory() {
         <td>${escapeHtml(item.nre_yield || '-')}</td>
         <td><button class="secondary" type="button" data-report="${escapeHtml(item.recommendation_id)}">Report</button></td>
       </tr>`).join('') : '<tr><td colspan="6">No suggestions yet.</td></tr>';
-    rows.querySelectorAll('[data-report]').forEach(btn => btn.addEventListener('click', () => {
-      const token = sessionStorage.getItem('access_token');
-      window.open(`/api/reports/${btn.dataset.report}?token=${encodeURIComponent(token)}`);
+    rows.querySelectorAll('[data-report]').forEach(btn => btn.addEventListener('click', () => { // Report buttons in history
+      // The browser will send the auth cookie automatically. Never put tokens in URLs.
+      window.open(`/api/reports/${btn.dataset.report}`);
     }));
   } catch (err) {
     if (err.name === 'AbortError') return;
@@ -165,8 +165,8 @@ document.querySelectorAll('.nav button').forEach(btn => btn.addEventListener('cl
   btn.classList.add('active');
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   document.getElementById(`view-${btn.dataset.view}`).classList.remove('hidden');
-  if (btn.dataset.view === 'history') loadHistory().catch(() => {});
-  if (btn.dataset.view === 'rates') loadRates().catch(() => {});
+  if (btn.dataset.view === 'history') loadHistory().catch(() => { });
+  if (btn.dataset.view === 'rates') loadRates().catch(() => { });
 }));
 
 document.getElementById('addAssetBtn').addEventListener('click', () => row(document.getElementById('assetsList'), true));
@@ -175,19 +175,25 @@ document.getElementById('loadHistoryBtn').addEventListener('click', () => loadHi
 document.getElementById('refreshHistoryBtn').addEventListener('click', () => loadHistory());
 document.getElementById('loadRatesBtn').addEventListener('click', () => loadRates());
 document.getElementById('downloadReportBtn').addEventListener('click', () => {
+  // The browser will send the auth cookie automatically.
   if (lastRecommendationId) {
-    const token = sessionStorage.getItem('access_token');
-    window.open(`/api/reports/${lastRecommendationId}?token=${encodeURIComponent(token)}`);
+    window.open(`/api/reports/${lastRecommendationId}`);
   }
 });
 document.getElementById('downloadBulkPdfBtn').addEventListener('click', () => {
-  const token = sessionStorage.getItem('access_token');
-  const url = `/api/logs/pdf?limit=50&token=${encodeURIComponent(token)}`;
+  // The browser will send the auth cookie automatically.
+  const url = `/api/logs/pdf?limit=50`;
   window.open(url);
 });
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
-  sessionStorage.removeItem('access_token');
+  try {
+    // Tell the backend to revoke the refresh token and clear the cookies.
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+    });
+  } catch (err) { /* Ignore network errors on logout */ }
+  // Update the UI to show the login page.
   updateAuthState();
 });
 
@@ -207,12 +213,12 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || data.title || 'Login failed');
-    sessionStorage.setItem('access_token', data.access_token);
+    // No need to handle tokens in JS. The browser stores the HttpOnly cookie.
     document.getElementById('loginEmail').value = '';
     document.getElementById('loginPassword').value = '';
-    updateAuthState();
+    await updateAuthState();
     status.textContent = '';
-  } catch(err) {
+  } catch (err) {
     status.textContent = err.message;
     status.className = 'status error';
   }
@@ -265,17 +271,17 @@ document.getElementById('adviceForm').addEventListener('submit', async (event) =
   optimizeAbortController = new AbortController();
 
   try {
-    const res = await fetch('/api/optimize', { 
-      method: 'POST', 
-      headers: apiHeaders(), 
+    const res = await fetch('/api/optimize', {
+      method: 'POST',
+      headers: apiHeaders(),
       body: JSON.stringify(payload),
-      signal: optimizeAbortController.signal 
+      signal: optimizeAbortController.signal
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || data.title || 'Advice request failed');
     showResult(data);
     status.textContent = 'Advice ready.';
-    await loadHistory().catch(() => {});
+    await loadHistory().catch(() => { });
   } catch (err) {
     if (err.name === 'AbortError') return;
     status.textContent = err.message;
@@ -285,6 +291,4 @@ document.getElementById('adviceForm').addEventListener('submit', async (event) =
 
 fillSelect('base_currency', currencies);
 document.getElementById('base_currency').value = 'USD';
-row(document.getElementById('assetsList'), true);
-row(document.getElementById('liabilitiesList'), false);
-updateAuthState();
+updateAuthState(); // Check auth state on initial load

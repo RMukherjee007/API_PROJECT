@@ -4,7 +4,7 @@
  *  - POST /optimize                — main FCNR vs NRE yield recommendation
  *  - GET  /recommendations/:id     — fetch a stored recommendation
  *  - GET  /rates                   — policy + live FX snapshot
- *  - GET  /history                 — recent optimization events
+ *  - GET  /recent-suggestions                 — recent optimization events
  *  - GET  /logs                    — paginated audit log (delegated to audit-service when configured)
  *  - GET  /reports/:id             — PDF report
  *  - GET  /metrics                 — Prometheus
@@ -64,7 +64,7 @@ app.use([
   '/optimize',
   '/recommendations',
   '/rates',
-  '/history',
+  '/recent-suggestions',
   '/logs',
   '/reports',
 ], authenticateRequest);
@@ -152,13 +152,8 @@ app.post('/optimize', async (req, res) => {
   const userRole = req.headers['x-user-role'] || req.body?.user_role || 'RM';
   const portfolioSource = req.headers['x-portfolio-source'] || 'NOT_AVAILABLE';
 
-  if (config.isProd) {
-    if (config.fxFeed.provider !== 'bank-tms' && process.env.ALLOW_MOCK_PROVIDERS !== 'true') {
-      return sendProblemJson(res, 403, 'UNSUPPORTED_PROVIDER', 'Production rejects mock/free providers unless explicitly allowed.', traceparent);
-    }
-    if (config.fxFeed.provider === 'bank-tms' && !rateFeed.isLive()) {
-      return sendProblemJson(res, 503, 'MARKET_DATA_UNAVAILABLE', 'Bank TMS market data is unavailable; refusing to compute with fallback rates in production.', traceparent);
-    }
+  if (!rateFeed.isLive()) {
+    return sendProblemJson(res, 503, 'MARKET_DATA_UNAVAILABLE', 'Bank TMS market data is unavailable.', traceparent);
   }
 
   let body = req.body || {};
@@ -282,7 +277,7 @@ app.get('/rates', (req, res) => {
   });
 });
 
-app.get('/history', (req, res) => {
+app.get('/recent-suggestions', (req, res) => {
   const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 50));
   let items = listRecentOptimizations(limit);
   
@@ -367,9 +362,7 @@ app.get('/health/startup', (req, res) => {
   });
 });
 app.get('/health/ready', async (req, res) => {
-  const marketDataReady = config.isProd && config.fxFeed.provider === 'bank-tms'
-    ? rateFeed.isLive()
-    : Boolean(rateFeed.getFeed());
+  const marketDataReady = rateFeed.isLive();
   const ready = marketDataReady && recentList.length >= 0;
   const checks = {
     rate_feed: { status: rateFeed.isLive() ? 'live' : 'fallback', provider: rateFeed.getProvider(), error: rateFeed.getLastError(), is_critical: true },
@@ -388,7 +381,7 @@ app.get('/health/ready', async (req, res) => {
     service: 'yield-engine',
     uptime_seconds: process.uptime(),
     checks,
-    version: require('../../../package.json').version,
+    version: JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '../../../package.json'))).version,
   });
 });
 

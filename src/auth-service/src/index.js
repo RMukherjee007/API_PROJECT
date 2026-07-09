@@ -75,38 +75,8 @@ async function initDb() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    await seed();
   } catch (err) {
     log.error('auth_db_init_failed', { error: err.message });
-  }
-}
-
-async function seed() {
-  if (!config.auth.seedDemoUsers) {
-    log.info('auth_demo_seed_skipped');
-    return;
-  }
-  try {
-    const [[row]] = await pool.query(`SELECT COUNT(*) AS c FROM users`);
-    if (row.c > 0) return;
-    const users = [
-      { employee_id: 'EMP001', name: 'Test RM', email: 'rm.test@csb.co.in', password: 'password123', role: 'RM', branch_code: 'GIFT-001' },
-      { employee_id: 'EMP002', name: 'Test Senior RM', email: 'senior.rm.test@csb.co.in', password: 'password123', role: 'SENIOR_RM', branch_code: 'GIFT-001' },
-      { employee_id: 'EMP003', name: 'Test Treasury', email: 'treasury.test@csb.co.in', password: 'password123', role: 'TREASURY', branch_code: 'HO-TR' },
-      { employee_id: 'EMP004', name: 'Raghav Mukherjee', email: 'raghav.mukherjee@csb.co.in', password: 'HelloWorld@1729', role: 'ADMIN', branch_code: 'HO' }
-    ];
-    const values = [];
-    for (const u of users) {
-      const hash = await bcrypt.hash(u.password, config.security.bcryptRounds);
-      values.push([u.employee_id, u.name, u.email, hash, u.role, u.branch_code]);
-    }
-    await pool.query(
-      `INSERT INTO users(employee_id, name, email, password_hash, role, branch_code) VALUES ?`,
-      [values]
-    );
-    log.info('auth_seeded', { count: users.length });
-  } catch (err) {
-    log.warn('user_count_failed', { error: err.message });
   }
 }
 
@@ -168,10 +138,13 @@ function signRefreshToken(user) {
 }
 
 function authenticateJwt(req, res, next) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) return sendProblemJson(res, 401, 'UNAUTHENTICATED', 'Missing Bearer token.', req.traceparent);
+  // Read access token from the HttpOnly cookie
+  const token = req.cookies?.access_token;
+  if (!token) {
+    return sendProblemJson(res, 401, 'UNAUTHENTICATED', 'Missing access token cookie.', req.traceparent);
+  }
   try {
-    const decoded = jwt.verify(auth.slice(7), config.security.jwtSecret, {
+    const decoded = jwt.verify(token, config.security.jwtSecret, {
       algorithms: ['HS256'],
       issuer: config.security.jwtIssuer,
       audience: config.security.jwtAudience,
@@ -198,24 +171,39 @@ app.post('/api/v1/auth/login', async (req, res) => {
   const { token: refresh, jti } = signRefreshToken(user);
   await insertRefreshToken(jti, user.employee_id, config.security.jwtRefreshTtlSeconds);
 
+  // Set tokens in secure, HttpOnly cookies instead of returning in the body
+  res.cookie('access_token', access, {
+    httpOnly: true,
+    secure: config.isProd, // Use secure cookies in production
+    sameSite: 'strict',
+    maxAge: config.security.jwtAccessTtlSeconds * 1000,
+  });
+
+  res.cookie('refresh_token', refresh, {
+    httpOnly: true,
+    secure: config.isProd,
+    sameSite: 'strict',
+    path: '/api/v1/auth/refresh', // Scope refresh token to its endpoint
+    maxAge: config.security.jwtRefreshTtlSeconds * 1000,
+  });
+
   log.info('auth_login_ok', { employee_id: user.employee_id, role: user.role });
   res.status(200).json({
-    access_token: access,
-    refresh_token: refresh,
-    token_type: 'Bearer',
-    expires_in: config.security.jwtAccessTtlSeconds,
-    refresh_expires_in: config.security.jwtRefreshTtlSeconds,
+    // The response body should only contain non-sensitive user info
+    status: 'success',
     user: { employee_id: user.employee_id, name: user.name, email: user.email, role: user.role, branch_code: user.branch_code },
   });
 });
 
 app.post('/api/v1/auth/refresh', async (req, res) => {
-  const { refresh_token } = req.body || {};
+  // Read refresh token from the HttpOnly cookie
+  const refresh_token = req.cookies?.refresh_token;
   if (!refresh_token) return sendProblemJson(res, 400, 'MISSING_REQUIRED_FIELD', 'refresh_token is required', req.traceparent);
   let decoded;
   try {
     decoded = jwt.verify(refresh_token, config.security.jwtSecret, {
       algorithms: ['HS256'],
+      ignoreExpiration: false, // Enforce expiration check
       issuer: config.security.jwtIssuer,
       audience: config.security.jwtAudience,
     });
@@ -242,13 +230,22 @@ app.post('/api/v1/auth/refresh', async (req, res) => {
       [jti, user.employee_id, Date.now() + config.security.jwtRefreshTtlSeconds * 1000]
     );
     await connection.commit();
-    
-    res.status(200).json({
-      access_token: access,
-      refresh_token: newRefresh,
-      token_type: 'Bearer',
-      expires_in: config.security.jwtAccessTtlSeconds,
+
+    // Set new tokens in secure, HttpOnly cookies
+    res.cookie('access_token', access, {
+      httpOnly: true,
+      secure: config.isProd,
+      sameSite: 'strict',
+      maxAge: config.security.jwtAccessTtlSeconds * 1000,
     });
+    res.cookie('refresh_token', newRefresh, {
+      httpOnly: true,
+      secure: config.isProd,
+      sameSite: 'strict',
+      path: '/api/v1/auth/refresh',
+      maxAge: config.security.jwtRefreshTtlSeconds * 1000,
+    });
+    res.status(200).json({ status: 'success', user: { employee_id: user.employee_id, name: user.name, email: user.email, role: user.role, branch_code: user.branch_code } });
   } catch (err) {
     await connection.rollback();
     return sendProblemJson(res, 500, 'INTERNAL_SERVER_ERROR', 'Failed to rotate token.', req.traceparent);
@@ -281,17 +278,21 @@ app.get('/api/v1/auth/me', authenticateJwt, async (req, res) => {
 });
 
 app.post('/api/v1/auth/logout', async (req, res) => {
-  const { refresh_token } = req.body || {};
+  const refresh_token = req.cookies?.refresh_token;
   if (refresh_token) {
     try {
       const decoded = jwt.verify(refresh_token, config.security.jwtSecret, {
         algorithms: ['HS256'],
         issuer: config.security.jwtIssuer,
         audience: config.security.jwtAudience,
+        ignoreExpiration: true, // Allow logout of expired tokens
       });
       await revokeRefreshToken(decoded.jti);
     } catch { /* ignore */ }
   }
+  // Clear the cookies on the client
+  res.clearCookie('access_token');
+  res.clearCookie('refresh_token', { path: '/api/v1/auth/refresh' });
   res.status(200).json({ ok: true });
 });
 
@@ -313,4 +314,8 @@ app.listen(PORT, () => log.info('auth_service_listening', { port: PORT }));
 
 process.on('SIGTERM', async () => { await pool.end(); process.exit(0); });
 process.on('SIGINT', async () => { await pool.end(); process.exit(0); });
-process.on('unhandledRejection', (err) => log.error('unhandled_rejection', { error: err && err.message }));
+process.on('unhandledRejection', (err) => {
+  log.error('unhandled_rejection', { error: err && err.message, stack: err && err.stack });
+  // Exit immediately, allowing a container orchestrator to restart the service in a clean state.
+  process.exit(1);
+});

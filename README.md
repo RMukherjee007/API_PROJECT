@@ -1,80 +1,122 @@
-## NRI Yield Advisory Tool
+# CSB Bank - NRI Yield Platform
 
-A microservice ecosystem for calculating and recommending optimal deposit products (FCNR vs. NRE) for NRI customers, based on real-time market rates and existing portfolio assets/liabilities.
+An enterprise-grade, microservices-based advisory platform designed for CSB Bank's Relationship Managers (RMs). This platform provides intelligent, multi-currency yield optimization recommendations for NRI (Non-Resident Indian) clients, cross-referencing Core Banking System (CBS) portfolio data with live Treasury/FX rates.
 
-## Overview
+## Architecture Overview
 
 The NRI Yield Advisory Tool is built on a distributed microservices architecture using Node.js, Express, Redis, MySQL, and PostgreSQL. It bridges the gap between client banking profiles (fetched from Core Banking Systems) and real-time Treasury/Market rates to advise Relationship Managers (RMs) and NRI clients on optimal money placement.
 
-### Key Capabilities
-- **Real-time Yield Calculation:** Automatically compares FCNR (Foreign Currency Non-Resident) and NRE (Non-Resident External) yields, factoring in forward premiums and internal ALM penalties.
-- **Portfolio Integration:** Dynamically fetches existing customer assets and liabilities from the bank's CBS via an Enterprise Service Bus (ESB) integration.
-- **Strict Role-Based Access Control (RBAC):** Tiered permissions enforcing that only Senior RMs, Treasury, or Admins can manually override market/FX rates.
-- **Immutable Audit Trails:** Dedicated audit service recording all recommendations, capable of generating cryptographically verifable PDF reports in bulk.
-- **Robust Rate Limiting & Idempotency:** Redis-backed rate limiting with graceful in-memory fallbacks, and strict idempotency checks to prevent duplicate execution of financial calculations.
+The system is built as a suite of highly decoupled Node.js microservices:
 
-## Documentation Handoff Package
+- **Frontend (SPA):** Static single-page application served with a lightweight Express proxy. RMs interface with this portal.
+- **Gateway:** Central API gateway routing traffic, handling JWT authentication, request validation, and distributed rate limiting.
+- **Yield Engine:** The core mathematical engine that evaluates NRE/FCNR products against the client's CBS portfolio, applying ALM (Asset Liability Management) policies.
+- **ESB (Enterprise Service Bus Proxy):** A caching proxy and translation layer simulating the bank's internal message bus.
+- **Bank Integration Service:** Narrow adapter that connects to the Core Banking System (CBS) to retrieve customer asset/liability views securely.
+- **Auth Service:** Issues JWTs and handles authentication (currently mocking bank IAM integration).
+- **Audit Service:** Immutable ledger for compliance. It records every recommendation generated and provides bulk PDF reporting for auditors.
 
-A comprehensive documentation package has been generated for a smooth operational and security handoff. Please refer to the files in the `docs/handoff/` directory:
+*All inter-service communication is secured via HMAC-SHA256 request signing.*
 
-1. **[Architecture & Design](./docs/handoff/1_Architecture_and_Design.md):** System diagrams, data flows, and API specifications.
-2. **[Infrastructure & Deployment](./docs/handoff/2_Infrastructure_and_Deployment.md):** Docker orchestration, environment variables, and dependency management.
-3. **[Security & Compliance](./docs/handoff/3_Security_and_Compliance.md):** Auth mechanisms, data classification, and threat models.
-4. **[Operations, Maintenance & Support](./docs/handoff/4_Operations_and_Maintenance.md):** Observability, runbooks, and CI/CD considerations.
-5. **[Final Handoff & Sign-Off](./docs/handoff/5_Final_Handoff_and_SignOff.md):** Security audit reports and the transition checklist.
+## Prerequisites
 
-## Quick Start
+- **Docker** and **Docker Compose**
+- **Node.js v20+** (if running services locally outside of containers)
+- **Kubernetes (kubectl/minikube)** (for production deployment)
 
-### Prerequisites
-- Node.js (v18+)
-- Docker & Docker Compose (for spinning up data stores)
-- NPM
+## Local Development (Docker Compose)
 
-### 1. Start Infrastructure Dependencies
-Spin up Redis (Caching/Limiting), MySQL (Auth), and PostgreSQL (Audit logs).
-```bash
-docker-compose up -d
-```
+The easiest way to run the entire stack locally is using Docker Compose. It will automatically build the images, provision a MySQL database, and set up a Redis cache.
 
-### 2. Install Dependencies
-```bash
-npm install
-```
+1. **Clone the repository.**
+2. **Start the stack:**
+   ```bash
+   docker-compose up --build -d
+   ```
+3. **Access the application:**
+   - **Frontend UI:** `http://localhost:3000`
+   - **API Gateway:** `http://localhost:8080`
+4. **Stop the stack:**
+   ```bash
+   docker-compose down
+   ```
 
-### 3. Configure Environment Variables
-Copy the `.env.example` to `.env` and fill in any required development overrides.
-```bash
-cp .env.example .env
-```
+## Local Development (Node.js)
 
-### 4. Run the Ecosystem (Development)
-Use the `start:all` script to boot all microservices concurrently using `concurrently`.
-```bash
-npm run start:all
-```
-Alternatively, you can run individual services:
-- API Gateway: `npm run start:gateway` (Port 3000)
-- Auth Service: `npm run start:auth` (Port 3001)
-- Yield Engine: `npm run start:yield-engine` (Port 3002)
-- Audit Service: `npm run start:audit` (Port 3003)
-- ESB Stub: `npm run start:esb` (Port 3005)
-- Bank Integration: `npm run start:bank` (Port 3006)
-- Frontend BFF: `npm run start:frontend` (Port 8080)
+1. **Configure Environment Variables**
+   Copy the `.env.example` to `.env` and fill in any required development overrides.
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Run the Ecosystem**
+   Use the `start:all` script to boot all microservices concurrently using `concurrently`.
+   ```bash
+   npm run start:all
+   ```
+   Alternatively, you can run individual services:
+   - API Gateway: `npm run start:gateway` (Port 3000)
+   - Auth Service: `npm run start:auth` (Port 3001)
+   - Yield Engine: `npm run start:yield-engine` (Port 3002)
+   - Audit Service: `npm run start:audit` (Port 3003)
+   - ESB Stub: `npm run start:esb` (Port 3005)
+   - Bank Integration: `npm run start:bank` (Port 3006)
+   - Frontend BFF: `npm run start:frontend` (Port 8080)
 
 ## Accessing the UI
-Once running, the UI is available at `http://localhost:8080/`.
+
+Once running locally, the UI is available at `http://localhost:8080/` (or `http://localhost:3000` via Docker).
 
 **Test Accounts:**
-- **RM User:** `rm.test@csb.co.in` / `password123`
-- **Senior RM User:** `senior.rm.test@csb.co.in` / `password123`
-- **Treasury User:** `treasury.test@csb.co.in` / `password123`
-- **Admin User:** `raghav.mukherjee@csb.co.in` / `HelloWorld@1729`
+- **RM User:** `rm@bank.com` / `password123` (or `rm.test@csb.co.in`)
+- **Admin User:** `admin@bank.com` / `password123` (or `raghav.mukherjee@csb.co.in` / `HelloWorld@1729`)
 
 *(Note: Market Rates and Manual Overrides are hidden/restricted for standard RM roles.)*
 
-## Architecture Highlights
-- **API Gateway:** Central entry point handling public routing, token validation, rate-limiting, and signing internal requests.
-- **HMAC Signatures:** Machine-to-machine communication is secured via strict HMAC-SHA256 signatures injected by the Gateway, preventing lateral spoofing.
+## Production Deployment (Kubernetes)
+
+The `k8s/` directory contains all necessary manifests to deploy the platform to a production Kubernetes cluster. The platform has been rigorously hardened (running as non-root, read-only filesystems).
+
+1. **Create the Namespace:**
+   ```bash
+   kubectl apply -f k8s/namespace.yaml
+   ```
+2. **Configure Secrets:**
+   *Important:* Do not use `secret.example.yaml` in production. Provision high-entropy keys for `HMAC_SHARED_SECRET` and `JWT_SECRET` via your Cloud Provider's Secret Manager or Vault.
+3. **Deploy Configuration & Network Policies:**
+   ```bash
+   kubectl apply -f k8s/configmap.yaml
+   kubectl apply -f k8s/network-policy.yaml
+   ```
+4. **Deploy Services:**
+   ```bash
+   kubectl apply -f k8s/redis-deployment.yaml
+   kubectl apply -f k8s/esb-deployment.yaml
+   kubectl apply -f k8s/bank-deployment.yaml
+   kubectl apply -f k8s/yield-engine-deployment.yaml
+   kubectl apply -f k8s/audit-deployment.yaml
+   kubectl apply -f k8s/auth-deployment.yaml
+   kubectl apply -f k8s/gateway-deployment.yaml
+   kubectl apply -f k8s/frontend-deployment.yaml
+   ```
+5. **Apply Ingress:**
+   ```bash
+   kubectl apply -f k8s/ingress.yaml
+   ```
+
+## Security & Compliance
+
+This platform has undergone rigorous security audits to comply with enterprise banking standards (OWASP Top 10 & API Security):
+- **Zero Trust Network:** All service-to-service calls are explicitly authenticated using short-lived HMAC signatures.
+- **Container Hardening:** Containers drop privileges, running as `UID 1000` (Node user) with `readOnlyRootFilesystem: true`.
+- **Authorization:** Strict Role-Based Access Control (RBAC). RMs can only view their own audit logs, while Auditors have global visibility (mitigating IDOR vulnerabilities).
+- **Data Protection:** `HttpOnly` cookies are utilized on the frontend to protect JWTs from XSS exfiltration.
 - **Fail-fast Resilience:** Redis failures smoothly transition to in-memory fallbacks or return standard `503 Service Unavailable` errors without causing connection hangs or infinite loops.
 
----
+## Running Tests
+
+Unit and integration tests are available inside the respective microservice directories or at the root. To run unit and security tests:
+```bash
+npm run test:unit
+npm run test:security
+```

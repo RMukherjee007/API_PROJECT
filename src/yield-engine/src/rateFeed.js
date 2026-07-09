@@ -17,30 +17,7 @@ const PREMIUM_MAP = {
   SAR: 0.01527, QAR: 0.01569, OMR: 0.01517, BHD: 0.01531, KWD: 0.01572,
 };
 
-const DEFAULT_SPOT = {
-  'USD/INR': '83.500000', 'GBP/INR': '105.200000', 'EUR/INR': '90.100000',
-  'CAD/INR': '61.200000', 'AUD/INR': '55.800000', 'SGD/INR': '62.400000',
-  'JPY/INR': '0.560000', 'CHF/INR': '95.300000', 'HKD/INR': '10.700000',
-  'AED/INR': '22.730000', 'SAR/INR': '22.260000', 'QAR/INR': '22.940000',
-  'OMR/INR': '217.500000', 'BHD/INR': '222.000000', 'KWD/INR': '273.500000',
-};
 
-function buildDefaultForward() {
-  const fwd = {};
-  for (const [pair, spot] of Object.entries(DEFAULT_SPOT)) {
-    const ccy = pair.split('/')[0];
-    const spotVal = parseFloat(spot);
-    const premium = PREMIUM_MAP[ccy] || 0.015;
-    fwd[pair] = {
-      '12': (spotVal * (1 + premium * 1.0)).toFixed(6),
-      '24': (spotVal * (1 + premium * 2.0)).toFixed(6),
-      '36': (spotVal * (1 + premium * 3.0)).toFixed(6),
-      '48': (spotVal * (1 + premium * 4.0)).toFixed(6),
-      '60': (spotVal * (1 + premium * 5.0)).toFixed(6),
-    };
-  }
-  return fwd;
-}
 
 const POLICY_STORE = {
   fcnr: {
@@ -129,30 +106,7 @@ async function fetchJson(url, timeoutMs, headers = {}) {
   }
 }
 
-async function fetchOpenErApiRates() {
-  const url = config.fxFeed.apiKey
-    ? `${config.fxFeed.baseUrl}?apikey=${encodeURIComponent(config.fxFeed.apiKey)}`
-    : config.fxFeed.baseUrl;
-  const data = await fetchJson(url, config.fxFeed.timeoutMs);
-  if (!data || data.result !== 'success' || !data.rates) {
-    throw new Error('Provider returned non-success payload');
-  }
-  const spot = {};
-  const forward = {};
-  for (const ccy of FCNR_ELIGIBLE_CURRENCIES) {
-    const inverse = fixedRate(1 / Number(data.rates[ccy]));
-    if (!inverse) throw new Error(`Provider missing valid INR/${ccy} rate`);
-    const pair = `${ccy}/INR`;
-    spot[pair] = inverse;
-    forward[pair] = normalizeForwardCurve(pair, null, inverse);
-  }
-  return {
-    spot,
-    forward,
-    ratesAsOf: data.time_last_update_utc || new Date().toISOString(),
-    provider: 'open-er-api',
-  };
-}
+
 
 async function fetchBankTmsRates() {
   const headers = config.fxFeed.apiKey ? { authorization: `Bearer ${config.fxFeed.apiKey}` } : {};
@@ -162,7 +116,7 @@ async function fetchBankTmsRates() {
 
 class LiveRateFeed {
   constructor() {
-    this.feed = { spot: { ...DEFAULT_SPOT }, forward: buildDefaultForward() };
+    this.feed = { spot: {}, forward: {} };
     this.history = []; // ring buffer of snapshots (used for time-series)
     this.maxHistory = 500;
     this.ratesAsOf = new Date().toISOString();
@@ -194,9 +148,7 @@ class LiveRateFeed {
 
   async fetchLiveRates() {
     try {
-      const snapshot = config.fxFeed.provider === 'bank-tms'
-        ? await fetchBankTmsRates()
-        : await fetchOpenErApiRates();
+      const snapshot = await fetchBankTmsRates();
 
       let updated = 0;
       for (const [pair, rate] of Object.entries(snapshot.spot)) {
@@ -247,4 +199,4 @@ class LiveRateFeed {
   }
 }
 
-module.exports = { LiveRateFeed, POLICY_STORE, DEFAULT_SPOT, FCNR_ELIGIBLE_CURRENCIES, PREMIUM_MAP };
+module.exports = { LiveRateFeed, POLICY_STORE, FCNR_ELIGIBLE_CURRENCIES, PREMIUM_MAP };

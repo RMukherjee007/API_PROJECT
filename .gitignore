@@ -22,3 +22,4 @@ dist/
 build/
 coverage/
 .nyc_output/
+k8s/secret.yaml

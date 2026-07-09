@@ -12,7 +12,7 @@
  * Endpoints:
  *   POST /optimize                          — main recommendation
  *   GET  /rates                             — proxy to yield-engine
- *   GET  /history                           — recent suggestion history
+ *   GET  /recent-suggestions                 — recent suggestion history
  *   GET  /logs                              — persisted suggestion logs
  *   GET  /recommendations/:id               — fetch one stored suggestion
  *   GET  /reports/:id                       — downloadable recommendation report
@@ -204,7 +204,7 @@ app.post('/optimize', authenticateRequest, authenticateJwt, requireOverrideRole,
                 }
                 throw new Error(`ESB fetch failed with status ${r.status}`);
               })();
-              
+
               inFlightCbsFetches.set(customerId, fetchPromise);
               portfolioData = await fetchPromise;
               inFlightCbsFetches.delete(customerId);
@@ -290,7 +290,7 @@ function proxy(path, target, method = 'GET', binary = false) {
 }
 
 app.get('/rates', authenticateRequest, authenticateJwt, proxy('/rates', config.services.yieldEngineUrl));
-app.get('/history', authenticateRequest, authenticateJwt, proxy('/history', config.services.yieldEngineUrl));
+app.get('/recent-suggestions', authenticateRequest, authenticateJwt, proxy('/recent-suggestions', config.services.yieldEngineUrl));
 app.get('/logs', authenticateRequest, authenticateJwt, proxy('/api/v1/audit/logs', config.services.auditUrl));
 app.get('/logs/pdf', authenticateRequest, authenticateJwt, proxy('/api/v1/audit/logs/pdf', config.services.auditUrl, 'GET', true));
 app.get('/recommendations/:recommendation_id', authenticateRequest, authenticateJwt, proxy('/api/v1/audit/recommendations/', config.services.auditUrl));
@@ -338,10 +338,11 @@ app.listen(PORT, () => log.info('gateway_listening', { port: PORT }));
 
 function shutdown(sig) {
   log.info('gateway_shutdown_begin', { signal: sig });
-  if (redis) redis.quit().catch(() => {});
+  if (redis) redis.quit().catch(() => { });
   process.exit(0);
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('unhandledRejection', (err) => log.error('unhandled_rejection', { error: err && err.message }));
+process.on('uncaughtException', (err) => log.error('uncaught_exception', { error: err.message, stack: err.stack }));
 process.on('uncaughtException', (err) => log.error('uncaught_exception', { error: err.message, stack: err.stack }));

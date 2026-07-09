@@ -73,20 +73,8 @@ if (isProd) {
   if (parseBool(process.env.AUTH_SEED_DEMO_USERS, false)) {
     throw new Error('Refusing to seed demo users in production. Set AUTH_SEED_DEMO_USERS=false and provision users through IAM/onboarding.');
   }
-  const liveBankMode = parseBool(process.env.BANK_LIVE_MODE, false);
-  if (!liveBankMode && !parseBool(process.env.ALLOW_MOCK_BANK_IN_PRODUCTION, false)) {
-    throw new Error('Refusing to start in production with mock bank rails. Set BANK_LIVE_MODE=true or explicitly set ALLOW_MOCK_BANK_IN_PRODUCTION=true for non-production-like sandboxes.');
-  }
-  if (liveBankMode) {
-    requireProductionEnv('CBS_ADAPTER_URL');
-  }
-  const fxProvider = process.env.FX_FEED_PROVIDER || 'open-er-api';
-  if (fxProvider !== 'bank-tms' && !parseBool(process.env.ALLOW_FREE_FX_FEED_IN_PRODUCTION, false)) {
-    throw new Error('Refusing to start in production with a non-bank FX feed. Set FX_FEED_PROVIDER=bank-tms or explicitly set ALLOW_FREE_FX_FEED_IN_PRODUCTION=true for sandbox exceptions.');
-  }
-  if (fxProvider === 'bank-tms' && !process.env.TMS_MARKET_DATA_URL) {
-    throw new Error('FX_FEED_PROVIDER=bank-tms requires TMS_MARKET_DATA_URL.');
-  }
+  requireProductionEnv('CBS_ADAPTER_URL');
+  requireProductionEnv('TMS_MARKET_DATA_URL');
 }
 
 const config = {
@@ -130,8 +118,7 @@ const config = {
     bcryptRounds: parseInt10(process.env.BCRYPT_ROUNDS, isProd ? 12 : 10),
   },
   auth: {
-    seedDemoUsers: parseBool(process.env.AUTH_SEED_DEMO_USERS, !isProd),
-    demoPassword: process.env.AUTH_DEMO_PASSWORD || '',
+    // Basic auth logic remains as a placeholder for bank's IAM integration
   },
   log: {
     level: process.env.LOG_LEVEL || (isProd ? 'info' : 'debug'),
@@ -143,9 +130,8 @@ const config = {
   },
   rateUpdateIntervalMs: parseInt10(process.env.RATE_UPDATE_INTERVAL_MS, 60_000),
   fxFeed: {
-    provider: process.env.FX_FEED_PROVIDER || 'open-er-api',
-    baseUrl: process.env.FX_FEED_BASE_URL || 'https://open.er-api.com/v6/latest/INR',
-    tmsMarketDataUrl: process.env.TMS_MARKET_DATA_URL || '',
+    provider: 'bank-tms',
+    tmsMarketDataUrl: process.env.TMS_MARKET_DATA_URL || 'http://placeholder-tms-api.local/api/rates',
     apiKey: process.env.FX_FEED_API_KEY || '',
     timeoutMs: parseInt10(process.env.FX_FEED_TIMEOUT_MS, 8000),
   },
@@ -161,9 +147,7 @@ const config = {
     },
   },
   bank: {
-    // Set BANK_LIVE_MODE=true to fetch portfolio data from the bank CBS adapter.
-    liveMode: parseBool(process.env.BANK_LIVE_MODE, false),
-    cbsAdapterUrl: process.env.CBS_ADAPTER_URL || '',
+    cbsAdapterUrl: process.env.CBS_ADAPTER_URL || 'http://placeholder-cbs-api.local/api/portfolio',
   },
   business: {
     minPrincipalUsd: parseFloat10(process.env.MIN_PRINCIPAL_USD, 1000),

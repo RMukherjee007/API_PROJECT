@@ -7,6 +7,9 @@ const PDFDocument = require('pdfkit');
 
 function generateBulkPdfReport(logs) {
   return new Promise((resolve, reject) => {
+    // Defensively handle cases where logs might be null or undefined.
+    const safeLogs = Array.isArray(logs) ? logs : [];
+
     try {
       const doc = new PDFDocument({ margin: 30, size: 'A4', info: { Title: 'NRI Yield Recommendations Summary', Author: 'CSB Treasury Tech' } });
       const buffers = [];
@@ -22,13 +25,13 @@ function generateBulkPdfReport(logs) {
       doc.moveDown(0.2);
       doc.fontSize(10).font('Helvetica').fillColor(muted).text(`Generated: ${new Date().toISOString()}`, { align: 'center' });
       doc.moveDown(0.2);
-      doc.fontSize(10).text(`Total Records: ${logs.length}`, { align: 'center' });
+      doc.fontSize(10).text(`Total Records: ${safeLogs.length}`, { align: 'center' });
       doc.moveDown(1);
 
       // Table Headers
       const startX = 30;
       let y = doc.y;
-      
+
       const drawRow = (y, cols, isHeader = false) => {
         doc.fontSize(isHeader ? 9 : 8).font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fillColor(isHeader ? '#000000' : text);
         doc.text(cols[0], startX, y, { width: 90 });           // Date
@@ -48,7 +51,7 @@ function generateBulkPdfReport(logs) {
       y += 5;
 
       // Draw Rows
-      for (const log of logs) {
+      for (const log of safeLogs) {
         if (y > 750) {
           doc.addPage();
           y = 30;
@@ -60,7 +63,7 @@ function generateBulkPdfReport(logs) {
 
         const dateStr = new Date(log.created_at).toISOString().split('T')[0];
         const amtStr = `${log.principal_amount} ${log.base_currency}`;
-        
+
         drawRow(y, [
           dateStr,
           log.customer_id,
@@ -71,7 +74,7 @@ function generateBulkPdfReport(logs) {
           log.nre_yield ? String(log.nre_yield) : '-',
           log.recommendation_id.substring(0, 8) + '...'
         ]);
-        
+
         y += 15;
       }
 

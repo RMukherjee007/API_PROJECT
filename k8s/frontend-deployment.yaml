@@ -15,6 +15,11 @@ spec:
       - name: frontend
         image: nri-yield/frontend:latest
         imagePullPolicy: IfNotPresent
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
         ports:
         - containerPort: 3000
         envFrom:

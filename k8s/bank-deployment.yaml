@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: gateway
+  name: bank
   namespace: nri-yield
 spec:
-  replicas: 2
+  replicas: 1
   selector:
-    matchLabels: { app: gateway }
+    matchLabels: { app: bank }
   template:
     metadata:
-      labels: { app: gateway }
+      labels: { app: bank }
     spec:
       containers:
-      - name: gateway
-        image: nri-yield/gateway:latest
+      - name: bank
+        image: nri-yield/bank-integration:latest
         imagePullPolicy: IfNotPresent
         securityContext:
           runAsNonRoot: true
@@ -21,31 +21,36 @@ spec:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
         ports:
-        - containerPort: 8080
+        - containerPort: 8085
         envFrom:
         - configMapRef: { name: nri-config }
-        - secretRef: { name: nri-secrets }
+        env:
+        - name: HMAC_SHARED_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: nri-secrets
+              key: HMAC_SHARED_SECRET
         livenessProbe:
-          httpGet: { path: /health/live, port: 8080 }
+          httpGet: { path: /health/live, port: 8085 }
           initialDelaySeconds: 10
           periodSeconds: 15
         readinessProbe:
-          httpGet: { path: /health/ready, port: 8080 }
+          httpGet: { path: /health/ready, port: 8085 }
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
-          requests: { cpu: "100m", memory: "128Mi" }
-          limits: { cpu: "500m", memory: "256Mi" }
+          requests: { cpu: "50m", memory: "64Mi" }
+          limits: { cpu: "200m", memory: "128Mi" }
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: gateway
+  name: bank
   namespace: nri-yield
 spec:
-  selector: { app: gateway }
+  selector: { app: bank }
   ports:
-  - port: 8080
-    targetPort: 8080
+  - port: 8085
+    targetPort: 8085
     name: http
   type: ClusterIP
