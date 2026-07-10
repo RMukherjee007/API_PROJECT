@@ -228,7 +228,9 @@ app.get('/metrics', metricsHandler);
 app.use(errorHandler);
 
 const PORT = config.port.audit;
-server.listen(PORT, () => log.info('audit_service_listening', { port: PORT }));
+if (require.main === module) {
+  server.listen(PORT, () => log.info('audit_service_listening', { port: PORT }));
+}
 
 // Retention sweeper
 let sweeperInterval = null;
@@ -260,3 +262,5 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('unhandledRejection', (err) => log.error('unhandled_rejection', { error: err && err.message }));
 process.on('uncaughtException', (err) => log.error('uncaught_exception', { error: err.message, stack: err.stack }));
+
+module.exports = { app, store, server };

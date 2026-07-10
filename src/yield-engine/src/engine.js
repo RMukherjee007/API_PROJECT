@@ -204,7 +204,9 @@ function validateOptimizeRequest(body, traceparent, rateFeed) {
   }
 
   if (body.market_rates_override && body.market_rates_override.fcnr_rate_pct !== undefined) {
-    const baseRate = new Decimal(rateFeed.getPolicyStore().fcnr[body.base_currency] || '5.0');
+    const baseCurve = rateFeed.getPolicyStore().fcnr[body.base_currency];
+    const baseRatePct = resolveYieldCurveRate(baseCurve, Number(body.tenure_months));
+    const baseRate = new Decimal(baseRatePct);
     const overrideRate = new Decimal(body.market_rates_override.fcnr_rate_pct);
     const deviation = overrideRate.minus(baseRate).abs().toNumber();
     if (deviation > config.business.fcnrOverrideCapPct) {

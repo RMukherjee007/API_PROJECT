@@ -28,6 +28,7 @@ services:
       - ESB_PORT=8081
       - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
       - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
+      - REDIS_URL=redis://redis:6379
     healthcheck: { test: [ "CMD", "wget", "--spider", "http://localhost:8081/health/live" ], interval: 15s, timeout: 5s, retries: 3 }
 
   auth:
@@ -42,6 +43,14 @@ services:
       - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
       - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
       - CORS_ORIGINS=http://localhost:3000
+      - REDIS_URL=redis://redis:6379
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=app_user
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?set MYSQL_PASSWORD in local .env or secret manager}
+      - MYSQL_DATABASE=csb_bank
+    depends_on:
+      mysql: { condition: service_healthy }
     healthcheck: { test: [ "CMD", "wget", "--spider", "http://localhost:8083/health/live" ], interval: 15s, timeout: 5s, retries: 3 }
 
   audit:
@@ -63,6 +72,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
       - YIELD_ENGINE_URL=http://yield-engine:8082
       - CORS_ORIGINS=http://localhost:3000
+      - REDIS_URL=redis://redis:6379
     depends_on:
       mysql: { condition: service_healthy }
     healthcheck: { test: [ "CMD", "wget", "--spider", "http://localhost:8084/health/live" ], interval: 15s, timeout: 5s, retries: 3 }
@@ -83,6 +93,7 @@ services:
       - CORS_ORIGINS=http://localhost:3000
       - FX_FEED_PROVIDER=${FX_FEED_PROVIDER:-open-er-api}
       - TMS_MARKET_DATA_URL=${TMS_MARKET_DATA_URL:-}
+      - REDIS_URL=redis://redis:6379
     depends_on:
       audit: { condition: service_started }
     healthcheck: { test: [ "CMD", "wget", "--spider", "http://localhost:8082/health/live" ], interval: 15s, timeout: 5s, retries: 3 }
@@ -102,6 +113,7 @@ services:
       - HMAC_SHARED_SECRET=${HMAC_SHARED_SECRET:?set HMAC_SHARED_SECRET in local .env or secret manager}
       - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in local .env or secret manager}
       - CORS_ORIGINS=http://localhost:3000
+      - REDIS_URL=redis://redis:6379
     depends_on:
       esb: { condition: service_started }
     healthcheck: { test: [ "CMD", "wget", "--spider", "http://localhost:8085/health/live" ], interval: 15s, timeout: 5s, retries: 3 }

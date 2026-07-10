@@ -389,19 +389,28 @@ app.get('/health/ready', async (req, res) => {
 app.use(errorHandler);
 
 const PORT = config.port.yieldEngine;
-server.listen(PORT, () => {
-  log.info('yield_engine_listening', { port: PORT });
-  rateFeed.start(config.rateUpdateIntervalMs);
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    log.info('yield_engine_listening', { port: PORT });
+    rateFeed.start(config.rateUpdateIntervalMs);
+  });
+}
 
 // Graceful shutdown
 function shutdown(signal) {
   log.info('yield_engine_shutdown_begin', { signal });
   rateFeed.stop();
-  server.close(() => process.exit(0));
-  setTimeout(() => process.exit(1), 8000).unref();
+  server.close(() => {
+    log.info('yield_engine_shutdown_complete');
+    process.exit(0);
+  });
 }
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+
+if (require.main === module) {
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+module.exports = { app, server };
 process.on('unhandledRejection', (err) => log.error('unhandled_rejection', { error: err && err.message, stack: err && err.stack }));
 process.on('uncaughtException', (err) => log.error('uncaught_exception', { error: err.message, stack: err.stack }));

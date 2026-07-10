@@ -111,7 +111,10 @@ app.get('/metrics', metricsHandler);
 app.use(errorHandler);
 
 const PORT = config.port.esb;
-app.listen(PORT, () => log.info('esb_listening', { port: PORT }));
+if (require.main === module) {
+  app.listen(PORT, () => log.info('esb_listening', { port: PORT }));
+}
+module.exports = { app, redis };
 
 function shutdown(signal) {
   log.info('esb_shutdown_begin', { signal });

@@ -40,7 +40,9 @@ app.set('trust proxy', true);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: config.security.corsOrigins }));
 app.use(compression());
+const cookieParser = require('cookie-parser');
 app.use(express.json({ limit: '256kb' }));
+app.use(cookieParser());
 app.use(correlationMiddleware);
 app.use(metricsMiddleware());
 app.use(requestLogger);
@@ -305,7 +307,11 @@ app.get('/metrics', metricsHandler);
 app.use(errorHandler);
 
 const PORT = config.port.auth;
-app.listen(PORT, () => log.info('auth_service_listening', { port: PORT }));
+let server;
+if (require.main === module) {
+  server = app.listen(PORT, () => log.info('auth_service_listening', { port: PORT }));
+}
+module.exports = app;
 
 process.on('SIGTERM', async () => { await pool.end(); process.exit(0); });
 process.on('SIGINT', async () => { await pool.end(); process.exit(0); });

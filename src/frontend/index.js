@@ -66,6 +66,7 @@ function resolveUserContext(req) {
         userRole: decoded.role || 'RM',
       };
     } catch (err) {
+      log.error('jwt_verification_failed', { error: err.message });
       // If token verification fails for any reason, re-throw the error to force a 401.
       throw err;
     }
@@ -132,4 +133,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 const server = http.createServer(app);
 
 const PORT = config.port.frontend;
-server.listen(PORT, () => log.info('frontend_listening', { port: PORT, publicApi: config.frontend.publicApiBase }));
+if (require.main === module) {
+  server.listen(PORT, () => log.info('frontend_listening', { port: PORT, publicApi: config.frontend.publicApiBase }));
+}
+
+module.exports = { app, server };

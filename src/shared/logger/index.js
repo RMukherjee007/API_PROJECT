@@ -20,6 +20,13 @@ try { fs.mkdirSync(logDir, { recursive: true }); } catch { /* ignore */ }
 const correlationFormat = winston.format((info) => {
   if (!info.correlationId) info.correlationId = '-';
   if (!info.service) info.service = config.serviceName || 'unknown';
+  
+  // Datadog APM tracing integration fields
+  if (info.correlationId !== '-') {
+    info['dd.trace_id'] = info.correlationId;
+    info['dd.span_id'] = info.correlationId; // Simplified for demo; ideally span_id is unique per span
+  }
+  
   return info;
 })();
 

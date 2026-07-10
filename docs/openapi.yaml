@@ -1,0 +1,220 @@
+openapi: 3.0.3
+info:
+  title: CSB Bank NRI Yield Advisory Gateway API
+  description: API Gateway providing unified access to yield optimization, authentication, audit, and bank integration services.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local development environment
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      summary: Authenticate employee
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - employee_id
+                - password
+              properties:
+                employee_id:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Successful login
+        '401':
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      summary: Refresh JWT token
+      responses:
+        '200':
+          description: Token refreshed
+        '401':
+          description: Invalid or expired token
+
+  /auth/logout:
+    post:
+      summary: Logout employee
+      responses:
+        '200':
+          description: Logged out successfully
+
+  /auth/me:
+    get:
+      summary: Get current authenticated employee
+      responses:
+        '200':
+          description: Current user information
+
+  /auth/introspect:
+    post:
+      summary: Introspect token for details
+      responses:
+        '200':
+          description: Token information
+
+  /optimize:
+    post:
+      summary: Optimize yield based on customer portfolio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - customer_id
+                - principal_amount
+                - base_currency
+                - tenure_months
+              properties:
+                customer_id:
+                  type: string
+                principal_amount:
+                  type: string
+                  description: Amount to optimize
+                base_currency:
+                  type: string
+                  enum: [USD, GBP, EUR, AUD, CAD, SGD, AED]
+                tenure_months:
+                  type: integer
+                assets:
+                  type: array
+                  items:
+                    type: object
+                liabilities:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: Yield optimization result
+        '400':
+          description: Missing required fields
+        '503':
+          description: Dependent services unreachable
+
+  /rates:
+    get:
+      summary: Get current yield rates
+      responses:
+        '200':
+          description: Current FCNR and NRE yield rates
+
+  /recent-suggestions:
+    get:
+      summary: Fetch recent suggestions
+      responses:
+        '200':
+          description: List of recent suggestions
+
+  /logs:
+    get:
+      summary: Retrieve audit logs
+      responses:
+        '200':
+          description: List of audit logs
+
+  /logs/pdf:
+    get:
+      summary: Export logs as PDF
+      responses:
+        '200':
+          description: PDF file containing logs
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /recommendations/{recommendation_id}:
+    get:
+      summary: Get a specific recommendation by ID
+      parameters:
+        - name: recommendation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Recommendation object
+
+  /reports/{recommendation_id}:
+    get:
+      summary: Download recommendation report PDF
+      parameters:
+        - name: recommendation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Recommendation PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /metrics:
+    get:
+      summary: Retrieve Prometheus metrics
+      security: []
+      responses:
+        '200':
+          description: Metrics in text format
+
+  /version:
+    get:
+      summary: Get gateway service version
+      security: []
+      responses:
+        '200':
+          description: Version info
+
+  /health/live:
+    get:
+      summary: Liveness check
+      security: []
+      responses:
+        '200':
+          description: Service is alive
+
+  /health/ready:
+    get:
+      summary: Readiness check including dependencies
+      security: []
+      responses:
+        '200':
+          description: Service and dependencies are ready
+        '503':
+          description: One or more dependencies are degraded
+
+  /health/startup:
+    get:
+      summary: Startup check
+      security: []
+      responses:
+        '200':
+          description: Service has started

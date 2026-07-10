@@ -334,7 +334,11 @@ app.get('/health/ready', async (req, res) => {
 app.use(errorHandler);
 
 const PORT = config.port.gateway;
-app.listen(PORT, () => log.info('gateway_listening', { port: PORT }));
+let server;
+if (require.main === module) {
+  server = app.listen(PORT, () => log.info('gateway_listening', { port: PORT }));
+}
+module.exports = app;
 
 function shutdown(sig) {
   log.info('gateway_shutdown_begin', { signal: sig });

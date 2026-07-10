@@ -140,4 +140,65 @@ describe('Yield Engine - computeYield', () => {
     const expectedYield = 4.80 - penalty;
     expect(parseFloat(trace.fcnr_effective_yield_pct)).toBeCloseTo(expectedYield, 2);
   });
+
+  it('should validate manual override fields', () => {
+    const body = {
+      customer_id: 'CUST-1',
+      risk_profile: 'MODERATE',
+      principal_amount: '50000.00',
+      base_currency: 'USD',
+      value_date: '2026-08-01',
+      tenure_months: 12,
+      channel: 'MOBILE_APP',
+      is_manual_override: true,
+    };
+    const result = validateOptimizeRequest(body, mockCtx.traceparent, mockCtx.rateFeed);
+    expect(result.status).toBe(400);
+    expect(result.errorCode).toBe('MISSING_REQUIRED_FIELD');
+  });
+
+  it('should validate market rate overrides', () => {
+    const body = {
+      customer_id: 'CUST-1',
+      risk_profile: 'MODERATE',
+      principal_amount: '50000.00',
+      base_currency: 'USD',
+      value_date: '2026-08-01',
+      tenure_months: 12,
+      channel: 'MOBILE_APP',
+      market_rates_override: {
+        fcnr_rate_pct: '20.00' // Deviates too much
+      }
+    };
+    const result = validateOptimizeRequest(body, mockCtx.traceparent, mockCtx.rateFeed);
+    expect(result.status).toBe(422);
+    expect(result.errorCode).toBe('RATE_OVERRIDE_LIMIT_EXCEEDED');
+  });
+
+  it('should handle INR base currency', () => {
+    const result = computeYield({
+      base_currency: 'INR',
+      tenure_months: 12,
+      principal_amount: '5000000',
+    }, mockCtx);
+    
+    expect(result.advisory.recommended_product).toBe('NRE');
+    expect(result.decision_trace.fcnr_effective_yield_pct).toBe('0.00');
+  });
+
+  it('should fail if GCC currency without GIFT branch', () => {
+    const body = {
+      customer_id: 'CUST-1',
+      risk_profile: 'MODERATE',
+      principal_amount: '50000.00',
+      base_currency: 'AED',
+      value_date: '2026-08-01',
+      tenure_months: 12,
+      channel: 'BRANCH',
+      branch_code: 'MUMBAI-01'
+    };
+    const result = validateOptimizeRequest(body, mockCtx.traceparent, mockCtx.rateFeed);
+    expect(result.status).toBe(422);
+    expect(result.errorCode).toBe('GCC_REQUIRES_IFSC_BRANCH');
+  });
 });

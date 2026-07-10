@@ -70,16 +70,21 @@ function normalizePortfolio(payload = {}) {
 
 async function fetchEsbPortfolio(customerId) {
   const url = `${config.services.esbUrl}/portfolio/${encodeURIComponent(customerId)}`;
-  const response = await safeFetch(url, {
-    headers: buildSignedRequestHeaders({
-      secret: config.security.hmacSecret,
-      method: 'GET',
-      path: new URL(url).pathname,
-      body: '',
-      employeeId: 'BANK_INTEGRATION',
-      userRole: 'SERVICE',
-    }),
-  }, { timeoutMs: 3000, retries: 1 });
+  let response;
+  try {
+    response = await safeFetch(url, {
+      headers: buildSignedRequestHeaders({
+        secret: config.security.hmacSecret,
+        method: 'GET',
+        path: new URL(url).pathname,
+        body: '',
+        employeeId: 'BANK_INTEGRATION',
+        userRole: 'SERVICE',
+      }),
+    }, { timeoutMs: 3000, retries: 1 });
+  } catch (err) {
+    return { error: 'ESB Network Error', detail: err.message };
+  }
   let payload;
   try {
     payload = await response.json();
@@ -134,7 +139,10 @@ app.get('/metrics', metricsHandler);
 app.use(errorHandler);
 
 const PORT = config.port.bank;
-app.listen(PORT, () => log.info('bank_integration_listening', { port: PORT }));
+if (require.main === module) {
+  app.listen(PORT, () => log.info('bank_integration_listening', { port: PORT }));
+}
+module.exports = app;
 
 process.on('SIGTERM', () => process.exit(0));
 process.on('SIGINT', () => process.exit(0));
